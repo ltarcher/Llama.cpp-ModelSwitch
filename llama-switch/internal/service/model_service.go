@@ -2,8 +2,10 @@ package service
 
 import (
 	"fmt"
+	"log"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -202,6 +204,10 @@ func (s *ModelService) StartModel(cfg *model.ModelConfig) error {
 	if c.SSLCert != "" {
 		args = append(args, "--ssl-cert-file", c.SSLCert)
 	}
+
+	// 打印启动命令
+	cmdStr := fmt.Sprintf("%s %s", s.config.LLamaPath.Server, strings.Join(args, " "))
+	log.Printf("Starting model service with command:\n%s\n", cmdStr)
 
 	// 启动服务进程
 	if err := s.processManager.StartProcess(s.config.LLamaPath.Server, args); err != nil {

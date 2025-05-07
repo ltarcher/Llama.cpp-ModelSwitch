@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"log"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -138,6 +139,10 @@ func (s *BenchmarkService) StartBenchmark(cfg *model.BenchmarkConfig) (string, e
 	if cfg.Config.Progress > 0 {
 		args = append(args, "--progress")
 	}
+
+	// 打印启动命令
+	cmdStr := fmt.Sprintf("%s %s", s.config.LLamaPath.Bench, strings.Join(args, " "))
+	log.Printf("Starting benchmark with command:\n%s\n", cmdStr)
 
 	// 创建命令
 	cmd := exec.Command(s.config.LLamaPath.Bench, args...)
