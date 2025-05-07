@@ -181,6 +181,41 @@ func (s *BenchmarkService) StartBenchmark(cfg *model.BenchmarkConfig) (string, e
 	// 处理输出
 	go s.handleBenchmarkOutput(ctx, taskID, stdout, stderr)
 
+	// 解析输出并更新结果
+	go func() {
+		output, err := io.ReadAll(stdout)
+		if err != nil {
+			s.mu.Lock()
+			s.tasks[taskID].Status = "failed"
+			s.tasks[taskID].EndTime = time.Now().Format(time.RFC3339)
+			s.mu.Unlock()
+			return
+		}
+
+		result, err := ParseBenchmarkOutput(string(output))
+		if err != nil {
+			s.mu.Lock()
+			s.tasks[taskID].Status = "failed"
+			s.tasks[taskID].EndTime = time.Now().Format(time.RFC3339)
+			s.mu.Unlock()
+			return
+		}
+
+		s.mu.Lock()
+		defer s.mu.Unlock()
+
+		if status, exists := s.tasks[taskID]; exists {
+			status.Results = &model.BenchmarkResults{
+				TokensPerSecond: result.Tests[0].TokensPerSecond,
+				TotalTokens:     calculateTotalTokens(result.Tests[0].TestType),
+				TotalTime:       calculateTotalTime(result.Tests[0].TestType, result.Tests[0].TokensPerSecond),
+				MemoryUsed:      0, // 需要从其他输出中获取
+			}
+			status.Status = "completed"
+			status.EndTime = time.Now().Format(time.RFC3339)
+		}
+	}()
+
 	// 等待命令完成
 	go func() {
 		defer cancel() // 确保在函数退出时取消上下文

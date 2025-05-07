@@ -131,7 +131,15 @@ type BenchmarkStatus struct {
 
 // BenchmarkResults 基准测试结果
 type BenchmarkResults struct {
+	Model           string  `json:"model"`             // 模型名称
+	Size            string  `json:"size"`              // 模型大小
+	Params          string  `json:"params"`            // 模型参数
+	Backend         string  `json:"backend"`           // 使用的后端
+	GPULayers       int     `json:"gpu_layers"`        // GPU层数
+	MMap            bool    `json:"mmap"`              // 是否使用内存映射
+	TestType        string  `json:"test_type"`         // 测试类型
 	TokensPerSecond float64 `json:"tokens_per_second"` // 每秒处理的token数
+	Variation       float64 `json:"variation"`         // 性能波动
 	TotalTokens     int     `json:"total_tokens"`      // 总处理token数
 	TotalTime       float64 `json:"total_time"`        // 总耗时（秒）
 	MemoryUsed      int64   `json:"memory_used"`       // 使用的内存（字节）
