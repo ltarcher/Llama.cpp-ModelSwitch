@@ -28,17 +28,39 @@ func main() {
 	// 创建处理器
 	h := handler.NewHandler(cfg)
 
-	// 设置路由
+	// 设置带日志的路由
 	mux := http.NewServeMux()
 
+	// 请求日志中间件
+	loggingMiddleware := func(next http.HandlerFunc) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			log.Printf("Incoming request: %s %s", r.Method, r.URL.Path)
+			next(w, r)
+		}
+	}
+
 	// 模型服务相关路由
-	mux.HandleFunc("/api/v1/model/switch", h.SwitchModel)
-	mux.HandleFunc("/api/v1/model/stop", h.StopModel)
-	mux.HandleFunc("/api/v1/model/status", h.GetModelStatus)
+	mux.HandleFunc("/api/v1/model/switch", loggingMiddleware(h.SwitchModel))
+	mux.HandleFunc("/api/v1/model/stop", loggingMiddleware(h.StopModel))
+	mux.HandleFunc("/api/v1/model/status", loggingMiddleware(h.GetModelStatus))
 
 	// 基准测试相关路由
-	mux.HandleFunc("/api/v1/benchmark", h.StartBenchmark)
-	mux.HandleFunc("/api/v1/benchmark/status", h.GetBenchmarkStatus)
+	mux.HandleFunc("/api/v1/benchmark", loggingMiddleware(h.StartBenchmark))
+	mux.HandleFunc("/api/v1/benchmark/status", loggingMiddleware(h.GetBenchmarkStatus))
+
+	// 添加健康检查端点
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	})
+
+	log.Println("Registered API endpoints:")
+	log.Println("POST   /api/v1/model/switch")
+	log.Println("POST   /api/v1/model/stop")
+	log.Println("GET    /api/v1/model/status")
+	log.Println("POST   /api/v1/benchmark")
+	log.Println("GET    /api/v1/benchmark/status")
+	log.Println("GET    /health")
 
 	// 创建服务器
 	server := &http.Server{
@@ -79,6 +101,21 @@ func main() {
 
 		log.Println("Server shutdown completed")
 	}()
+
+	// 打印注册的路由
+	log.Println("Registered routes:")
+	for _, route := range []struct {
+		path    string
+		handler string
+	}{
+		{"/api/v1/model/switch", "SwitchModel"},
+		{"/api/v1/model/stop", "StopModel"},
+		{"/api/v1/model/status", "GetModelStatus"},
+		{"/api/v1/benchmark", "StartBenchmark"},
+		{"/api/v1/benchmark/status", "GetBenchmarkStatus"},
+	} {
+		log.Printf("  %-25s -> %s\n", route.path, route.handler)
+	}
 
 	// 启动服务器
 	log.Printf("Server starting on %s:%d\n", cfg.Server.Host, cfg.Server.Port)
