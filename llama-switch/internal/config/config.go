@@ -88,7 +88,7 @@ func LoadConfig() (*Config, error) {
 	cfg.LLamaPath.Bench = getEnv("LLAMA_BENCH_PATH", "E:/Downloads/llama-b5293-bin-win-cuda-cu12.4-x64/llama-bench.exe")
 
 	// 加载模型目录
-	cfg.ModelsDir = getEnv("MODELS_DIR", "E:/develop/Models")
+	cfg.ModelsDir = getEnv("MODELS_DIR", "E:/develop/Models/DeepSeek-R1-Distill-Qwen-32B-GGUF")
 
 	// 加载服务器配置
 	cfg.Server.Host = getEnv("SERVER_HOST", "127.0.0.1")

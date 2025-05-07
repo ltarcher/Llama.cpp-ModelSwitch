@@ -57,6 +57,9 @@ func main() {
 		}
 	}()
 
+	// 打印配置信息
+	log.Print(cfg.String())
+
 	// 启动服务器
 	log.Printf("Server starting on %s:%d\n", cfg.Server.Host, cfg.Server.Port)
 	if err := server.ListenAndServe(); err != http.ErrServerClosed {
