@@ -46,9 +46,12 @@ func main() {
 		Handler: mux,
 	}
 
-	// 创建一个上下文，用于控制关闭流程
-	ctx, cancel := context.WithCancel(context.Background())
+	// 创建取消上下文，用于控制关闭流程
+	_, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// 打印配置信息
+	log.Print(cfg.String())
 
 	// 设置优雅关闭
 	go func() {
@@ -62,9 +65,12 @@ func main() {
 		cancel()
 
 		// 停止模型服务
-		if err := h.modelService.StopModel(); err != nil {
+		if err := h.ModelService.StopModel(); err != nil {
 			log.Printf("Error stopping model service: %v\n", err)
 		}
+
+		// 清理基准测试服务
+		h.BenchmarkService.Cleanup()
 
 		// 关闭HTTP服务器
 		if err := server.Close(); err != nil {
@@ -79,14 +85,5 @@ func main() {
 	if err := server.ListenAndServe(); err != http.ErrServerClosed {
 		log.Printf("Server error: %v\n", err)
 		cancel() // 确保在服务器错误时也能触发清理
-	}
-
-	// 打印配置信息
-	log.Print(cfg.String())
-
-	// 启动服务器
-	log.Printf("Server starting on %s:%d\n", cfg.Server.Host, cfg.Server.Port)
-	if err := server.ListenAndServe(); err != http.ErrServerClosed {
-		log.Fatalf("Server error: %v\n", err)
 	}
 }

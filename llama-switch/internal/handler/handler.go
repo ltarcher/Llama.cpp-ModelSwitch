@@ -11,15 +11,15 @@ import (
 
 // Handler HTTP处理器
 type Handler struct {
-	modelService     *service.ModelService
-	benchmarkService *service.BenchmarkService
+	ModelService     *service.ModelService
+	BenchmarkService *service.BenchmarkService
 }
 
 // NewHandler 创建新的HTTP处理器
 func NewHandler(cfg *config.Config) *Handler {
 	return &Handler{
-		modelService:     service.NewModelService(cfg),
-		benchmarkService: service.NewBenchmarkService(cfg),
+		ModelService:     service.NewModelService(cfg),
+		BenchmarkService: service.NewBenchmarkService(cfg),
 	}
 }
 
@@ -36,12 +36,12 @@ func (h *Handler) SwitchModel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.modelService.ValidateModelConfig(&cfg); err != nil {
+	if err := h.ModelService.ValidateModelConfig(&cfg); err != nil {
 		h.respondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	if err := h.modelService.StartModel(&cfg); err != nil {
+	if err := h.ModelService.StartModel(&cfg); err != nil {
 		h.respondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -49,7 +49,7 @@ func (h *Handler) SwitchModel(w http.ResponseWriter, r *http.Request) {
 	h.respondWithJSON(w, http.StatusOK, model.NewAPIResponse(
 		true,
 		"Model switched successfully",
-		h.modelService.GetStatus(),
+		h.ModelService.GetStatus(),
 		"",
 	))
 }
@@ -61,7 +61,7 @@ func (h *Handler) StopModel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.modelService.StopModel(); err != nil {
+	if err := h.ModelService.StopModel(); err != nil {
 		h.respondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -81,7 +81,7 @@ func (h *Handler) GetModelStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	status := h.modelService.GetStatus()
+	status := h.ModelService.GetStatus()
 	h.respondWithJSON(w, http.StatusOK, model.NewAPIResponse(
 		true,
 		"Model status retrieved successfully",
@@ -103,12 +103,12 @@ func (h *Handler) StartBenchmark(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.benchmarkService.ValidateBenchmarkConfig(&cfg); err != nil {
+	if err := h.BenchmarkService.ValidateBenchmarkConfig(&cfg); err != nil {
 		h.respondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	taskID, err := h.benchmarkService.StartBenchmark(&cfg)
+	taskID, err := h.BenchmarkService.StartBenchmark(&cfg)
 	if err != nil {
 		h.respondWithError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -135,7 +135,7 @@ func (h *Handler) GetBenchmarkStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	status, err := h.benchmarkService.GetStatus(taskID)
+	status, err := h.BenchmarkService.GetStatus(taskID)
 	if err != nil {
 		h.respondWithError(w, http.StatusNotFound, err.Error())
 		return

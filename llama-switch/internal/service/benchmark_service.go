@@ -170,7 +170,7 @@ func (s *BenchmarkService) StartBenchmark(cfg *model.BenchmarkConfig) (string, e
 
 	// 创建上下文用于取消操作
 	ctx, cancel := context.WithCancel(context.Background())
-	s.tasks[taskID].cancelFunc = cancel
+	status.CancelFunc = cancel
 
 	// 启动命令
 	if err := cmd.Start(); err != nil {
@@ -215,7 +215,7 @@ func (s *BenchmarkService) GetStatus(taskID string) (*model.BenchmarkStatus, err
 }
 
 // handleBenchmarkOutput 处理基准测试输出
-func (s *BenchmarkService) handleBenchmarkOutput(taskID string, stdout, stderr io.ReadCloser) {
+func (s *BenchmarkService) handleBenchmarkOutput(ctx context.Context, taskID string, stdout, stderr io.ReadCloser) {
 	scanner := bufio.NewScanner(stdout)
 	results := &model.BenchmarkResults{}
 
