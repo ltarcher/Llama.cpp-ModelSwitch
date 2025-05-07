@@ -1,11 +1,14 @@
 package service
 
 import (
+	"context"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"sync"
 	"syscall"
+	"time"
 )
 
 // ProcessManager 进程管理器
@@ -59,6 +62,7 @@ func (pm *ProcessManager) StartProcess(command string, args []string) error {
 		pm.process = nil
 		pm.cmd = nil
 		pm.mu.Unlock()
+		log.Printf("Process exited: %s", command)
 	}()
 
 	return nil
@@ -73,17 +77,40 @@ func (pm *ProcessManager) StopProcess() error {
 		return nil
 	}
 
-	// 在Windows上，我们需要发送Ctrl+C信号来优雅地关闭进程
-	if err := pm.process.Signal(os.Interrupt); err != nil {
-		// 如果发送中断信号失败，则强制结束进程
-		if err := pm.process.Kill(); err != nil {
-			return fmt.Errorf("failed to kill process: %v", err)
-		}
-	}
+	// 创建超时上下文
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-	pm.process = nil
-	pm.cmd = nil
-	return nil
+	// 使用通道接收停止结果
+	done := make(chan error, 1)
+	go func() {
+		// 在Windows上，我们需要发送Ctrl+C信号来优雅地关闭进程
+		if err := pm.process.Signal(os.Interrupt); err != nil {
+			// 如果发送中断信号失败，则强制结束进程
+			if err := pm.process.Kill(); err != nil {
+				done <- fmt.Errorf("failed to kill process: %v", err)
+				return
+			}
+		}
+
+		// 等待进程退出
+		_, err := pm.process.Wait()
+		done <- err
+	}()
+
+	// 等待停止完成或超时
+	select {
+	case err := <-done:
+		pm.process = nil
+		pm.cmd = nil
+		return err
+	case <-ctx.Done():
+		// 超时后强制终止进程
+		if err := pm.process.Kill(); err != nil {
+			return fmt.Errorf("failed to kill process after timeout: %v", err)
+		}
+		return fmt.Errorf("process termination timed out")
+	}
 }
 
 // IsRunning 检查进程是否在运行

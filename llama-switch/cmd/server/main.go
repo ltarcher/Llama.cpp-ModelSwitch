@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -45,17 +46,40 @@ func main() {
 		Handler: mux,
 	}
 
+	// 创建一个上下文，用于控制关闭流程
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	// 设置优雅关闭
 	go func() {
 		sigChan := make(chan os.Signal, 1)
 		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 		<-sigChan
 
-		log.Println("Shutting down server...")
+		log.Println("Initiating graceful shutdown...")
+
+		// 取消上下文
+		cancel()
+
+		// 停止模型服务
+		if err := h.modelService.StopModel(); err != nil {
+			log.Printf("Error stopping model service: %v\n", err)
+		}
+
+		// 关闭HTTP服务器
 		if err := server.Close(); err != nil {
 			log.Printf("Error during server shutdown: %v\n", err)
 		}
+
+		log.Println("Server shutdown completed")
 	}()
+
+	// 启动服务器
+	log.Printf("Server starting on %s:%d\n", cfg.Server.Host, cfg.Server.Port)
+	if err := server.ListenAndServe(); err != http.ErrServerClosed {
+		log.Printf("Server error: %v\n", err)
+		cancel() // 确保在服务器错误时也能触发清理
+	}
 
 	// 打印配置信息
 	log.Print(cfg.String())

@@ -2,6 +2,7 @@ package service
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"log"
@@ -167,6 +168,10 @@ func (s *BenchmarkService) StartBenchmark(cfg *model.BenchmarkConfig) (string, e
 	}
 	s.tasks[taskID] = status
 
+	// 创建上下文用于取消操作
+	ctx, cancel := context.WithCancel(context.Background())
+	s.tasks[taskID].cancelFunc = cancel
+
 	// 启动命令
 	if err := cmd.Start(); err != nil {
 		delete(s.tasks, taskID)
@@ -174,14 +179,20 @@ func (s *BenchmarkService) StartBenchmark(cfg *model.BenchmarkConfig) (string, e
 	}
 
 	// 处理输出
-	go s.handleBenchmarkOutput(taskID, stdout, stderr)
+	go s.handleBenchmarkOutput(ctx, taskID, stdout, stderr)
 
 	// 等待命令完成
 	go func() {
+		defer cancel() // 确保在函数退出时取消上下文
+
 		err := cmd.Wait()
 		s.mu.Lock()
 		if err != nil {
-			s.tasks[taskID].Status = "failed"
+			if ctx.Err() == context.Canceled {
+				s.tasks[taskID].Status = "cancelled"
+			} else {
+				s.tasks[taskID].Status = "failed"
+			}
 			s.tasks[taskID].EndTime = time.Now().Format(time.RFC3339)
 		}
 		s.mu.Unlock()
