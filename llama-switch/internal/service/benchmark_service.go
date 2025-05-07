@@ -3,6 +3,7 @@ package service
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -183,16 +184,41 @@ func (s *BenchmarkService) StartBenchmark(cfg *model.BenchmarkConfig) (string, e
 
 	// 解析输出并更新结果
 	go func() {
+		// 读取并记录原始输出
 		output, err := io.ReadAll(stdout)
 		if err != nil {
 			s.mu.Lock()
 			s.tasks[taskID].Status = "failed"
 			s.tasks[taskID].EndTime = time.Now().Format(time.RFC3339)
 			s.mu.Unlock()
+			log.Printf("Failed to read benchmark output for task %s: %v", taskID, err)
 			return
 		}
 
-		result, err := ParseBenchmarkOutput(string(output))
+		// 输出原始结果
+		rawOutput := string(output)
+		log.Printf("=== Raw benchmark output for task %s ===\n%s\n=== End of raw output ===",
+			taskID, rawOutput)
+
+		// 解析结果
+		result, err := ParseBenchmarkOutput(rawOutput)
+		if err != nil {
+			s.mu.Lock()
+			s.tasks[taskID].Status = "failed"
+			s.tasks[taskID].EndTime = time.Now().Format(time.RFC3339)
+			s.mu.Unlock()
+			log.Printf("Failed to parse benchmark output for task %s: %v", taskID, err)
+			return
+		}
+
+		// 输出解析后的JSON结果
+		jsonResult, err := json.MarshalIndent(result, "", "  ")
+		if err != nil {
+			log.Printf("Failed to marshal benchmark result for task %s: %v", taskID, err)
+		} else {
+			log.Printf("=== Parsed benchmark result for task %s ===\n%s\n=== End of parsed result ===",
+				taskID, string(jsonResult))
+		}
 		if err != nil {
 			s.mu.Lock()
 			s.tasks[taskID].Status = "failed"
@@ -205,8 +231,22 @@ func (s *BenchmarkService) StartBenchmark(cfg *model.BenchmarkConfig) (string, e
 		defer s.mu.Unlock()
 
 		if status, exists := s.tasks[taskID]; exists {
+			if len(result.Tests) == 0 {
+				status.Status = "failed"
+				status.EndTime = time.Now().Format(time.RFC3339)
+				return
+			}
+
 			status.Results = &model.BenchmarkResults{
+				Model:           result.Tests[0].Model,
+				Size:            result.Tests[0].Size,
+				Params:          result.Tests[0].Params,
+				Backend:         result.Tests[0].Backend,
+				GPULayers:       result.Tests[0].GPULayers,
+				MMap:            result.Tests[0].MMap,
+				TestType:        result.Tests[0].TestType,
 				TokensPerSecond: result.Tests[0].TokensPerSecond,
+				Variation:       result.Tests[0].Variation,
 				TotalTokens:     calculateTotalTokens(result.Tests[0].TestType),
 				TotalTime:       calculateTotalTime(result.Tests[0].TestType, result.Tests[0].TokensPerSecond),
 				MemoryUsed:      0, // 需要从其他输出中获取
