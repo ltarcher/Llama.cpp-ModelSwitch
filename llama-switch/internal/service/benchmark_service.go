@@ -2,8 +2,8 @@ package service
 
 import (
 	"bufio"
+	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -149,16 +149,12 @@ func (s *BenchmarkService) StartBenchmark(cfg *model.BenchmarkConfig) (string, e
 	// 创建命令
 	cmd := exec.Command(s.config.LLamaPath.Bench, args...)
 
-	// 创建管道用于捕获输出
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return "", fmt.Errorf("failed to create stdout pipe: %v", err)
-	}
+	// 创建输出缓冲区
+	var stdoutBuf, stderrBuf bytes.Buffer
 
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return "", fmt.Errorf("failed to create stderr pipe: %v", err)
-	}
+	// 设置命令输出
+	cmd.Stdout = &stdoutBuf
+	cmd.Stderr = &stderrBuf
 
 	// 创建任务状态
 	status := &model.BenchmarkStatus{
@@ -169,108 +165,70 @@ func (s *BenchmarkService) StartBenchmark(cfg *model.BenchmarkConfig) (string, e
 	}
 	s.tasks[taskID] = status
 
-	// 创建上下文用于取消操作
-	ctx, cancel := context.WithCancel(context.Background())
-	status.CancelFunc = cancel
-
 	// 启动命令
 	if err := cmd.Start(); err != nil {
 		delete(s.tasks, taskID)
 		return "", fmt.Errorf("failed to start benchmark: %v", err)
 	}
 
-	// 处理输出
-	go s.handleBenchmarkOutput(ctx, taskID, stdout, stderr)
-
-	// 解析输出并更新结果
+	// 在goroutine中处理命令执行和结果收集
 	go func() {
-		// 读取并记录原始输出
-		output, err := io.ReadAll(stdout)
-		if err != nil {
-			s.mu.Lock()
-			s.tasks[taskID].Status = "failed"
-			s.tasks[taskID].EndTime = time.Now().Format(time.RFC3339)
-			s.mu.Unlock()
-			log.Printf("Failed to read benchmark output for task %s: %v", taskID, err)
-			return
-		}
-
-		// 输出原始结果
-		rawOutput := string(output)
-		log.Printf("=== Raw benchmark output for task %s ===\n%s\n=== End of raw output ===",
-			taskID, rawOutput)
-
-		// 解析结果
-		result, err := ParseBenchmarkOutput(rawOutput)
-		if err != nil {
-			s.mu.Lock()
-			s.tasks[taskID].Status = "failed"
-			s.tasks[taskID].EndTime = time.Now().Format(time.RFC3339)
-			s.mu.Unlock()
-			log.Printf("Failed to parse benchmark output for task %s: %v", taskID, err)
-			return
-		}
-
-		// 输出解析后的JSON结果
-		jsonResult, err := json.MarshalIndent(result, "", "  ")
-		if err != nil {
-			log.Printf("Failed to marshal benchmark result for task %s: %v", taskID, err)
-		} else {
-			log.Printf("=== Parsed benchmark result for task %s ===\n%s\n=== End of parsed result ===",
-				taskID, string(jsonResult))
-		}
-		if err != nil {
-			s.mu.Lock()
-			s.tasks[taskID].Status = "failed"
-			s.tasks[taskID].EndTime = time.Now().Format(time.RFC3339)
-			s.mu.Unlock()
-			return
-		}
+		// 等待命令完成
+		err := cmd.Wait()
 
 		s.mu.Lock()
 		defer s.mu.Unlock()
 
-		if status, exists := s.tasks[taskID]; exists {
-			if len(result.Tests) == 0 {
-				status.Status = "failed"
-				status.EndTime = time.Now().Format(time.RFC3339)
-				return
-			}
-
-			status.Results = &model.BenchmarkResults{
-				Model:           result.Tests[0].Model,
-				Size:            result.Tests[0].Size,
-				Params:          result.Tests[0].Params,
-				Backend:         result.Tests[0].Backend,
-				GPULayers:       result.Tests[0].GPULayers,
-				MMap:            result.Tests[0].MMap,
-				TestType:        result.Tests[0].TestType,
-				TokensPerSecond: result.Tests[0].TokensPerSecond,
-				Variation:       result.Tests[0].Variation,
-				TotalTokens:     calculateTotalTokens(result.Tests[0].TestType),
-				TotalTime:       calculateTotalTime(result.Tests[0].TestType, result.Tests[0].TokensPerSecond),
-				MemoryUsed:      0, // 需要从其他输出中获取
-			}
-			status.Status = "completed"
-			status.EndTime = time.Now().Format(time.RFC3339)
+		status, exists := s.tasks[taskID]
+		if !exists {
+			return
 		}
-	}()
 
-	// 等待命令完成
-	go func() {
-		defer cancel() // 确保在函数退出时取消上下文
-
-		err := cmd.Wait()
-		s.mu.Lock()
 		if err != nil {
-			if ctx.Err() == context.Canceled {
-				s.tasks[taskID].Status = "cancelled"
-			} else {
-				s.tasks[taskID].Status = "failed"
-			}
-			s.tasks[taskID].EndTime = time.Now().Format(time.RFC3339)
+			status.Status = "failed"
+			status.EndTime = time.Now().Format(time.RFC3339)
+			log.Printf("Benchmark failed: %v, stderr: %s", err, stderrBuf.String())
+			return
 		}
-		s.mu.Unlock()
+
+		// 处理成功结果
+		fullOutput := stdoutBuf.String()
+		log.Printf("=== Raw benchmark output ===\n%s\n========================", fullOutput)
+
+		// 解析结果
+		result, err := ParseBenchmarkOutput(fullOutput)
+		if err != nil {
+			status.Status = "failed"
+			log.Printf("Failed to parse benchmark output: %v", err)
+			status.EndTime = time.Now().Format(time.RFC3339)
+			return
+		}
+
+		if len(result.Tests) == 0 {
+			status.Status = "failed"
+			log.Printf("No test results found in benchmark output")
+			status.EndTime = time.Now().Format(time.RFC3339)
+			return
+		}
+
+		// 保存解析结果
+		testResult := result.Tests[0]
+		status.Results = &model.BenchmarkResults{
+			Model:           testResult.Model,
+			Size:            testResult.Size,
+			Params:          testResult.Params,
+			Backend:         testResult.Backend,
+			GPULayers:       testResult.GPULayers,
+			MMap:            testResult.MMap,
+			TestType:        testResult.TestType,
+			TokensPerSecond: testResult.TokensPerSecond,
+			Variation:       testResult.Variation,
+			TotalTokens:     calculateTotalTokens(testResult.TestType),
+			TotalTime:       calculateTotalTime(testResult.TestType, testResult.TokensPerSecond),
+		}
+		status.Status = "completed"
+		log.Printf("Benchmark completed with result: %+v", status.Results)
+		status.EndTime = time.Now().Format(time.RFC3339)
 	}()
 
 	return taskID, nil
