@@ -14,7 +14,15 @@ import (
 
 func main() {
 	// 加载配置
-	cfg := config.DefaultConfig()
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		log.Fatalf("Failed to load config: %v\n", err)
+	}
+
+	// 验证配置
+	if err := config.ValidateConfig(cfg); err != nil {
+		log.Fatalf("Invalid configuration: %v\n", err)
+	}
 
 	// 创建处理器
 	h := handler.NewHandler(cfg)

@@ -95,8 +95,36 @@ GET /api/v1/benchmark/status?task_id={task_id}
 
 ## 文档
 
+- [配置指南](docs/configuration.md)
 - [模型服务参数详细说明](docs/model_params.md)
 - [基准测试参数详细说明](docs/benchmark_params.md)
+
+## 快速开始
+
+1. 复制配置文件：
+```bash
+cp .env.example .env
+```
+
+2. 编辑配置文件，设置必要的路径和参数：
+```env
+# llama.cpp 二进制文件路径
+LLAMA_SERVER_PATH=E:/Downloads/llama-b5293-bin-win-cuda-cu12.4-x64/llama-server.exe
+LLAMA_BENCH_PATH=E:/Downloads/llama-b5293-bin-win-cuda-cu12.4-x64/llama-bench.exe
+
+# 模型目录
+MODELS_DIR=E:/develop/Models
+
+# API服务器配置
+SERVER_HOST=127.0.0.1
+SERVER_PORT=8080
+```
+
+3. 启动服务：
+```bash
+cd cmd/server
+go run main.go
+```
 
 ## 配置示例
 
