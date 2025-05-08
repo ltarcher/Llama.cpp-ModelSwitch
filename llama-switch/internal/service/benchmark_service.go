@@ -212,22 +212,33 @@ func (s *BenchmarkService) StartBenchmark(cfg *model.BenchmarkConfig) (string, e
 		}
 
 		// 保存解析结果
-		testResult := result.Tests[0]
-		status.Results = &model.BenchmarkResults{
-			Model:           testResult.Model,
-			Size:            testResult.Size,
-			Params:          testResult.Params,
-			Backend:         testResult.Backend,
-			GPULayers:       testResult.GPULayers,
-			MMap:            testResult.MMap,
-			TestType:        testResult.TestType,
-			TokensPerSecond: testResult.TokensPerSecond,
-			Variation:       testResult.Variation,
-			TotalTokens:     calculateTotalTokens(testResult.TestType),
-			TotalTime:       calculateTotalTime(testResult.TestType, testResult.TokensPerSecond),
+		var allResults []*model.BenchmarkResults
+		for _, testResult := range result.Tests {
+			benchmarkResult := &model.BenchmarkResults{
+				Model:           testResult.Model,
+				Size:            testResult.Size,
+				Params:          testResult.Params,
+				Backend:         testResult.Backend,
+				GPULayers:       testResult.GPULayers,
+				MMap:            testResult.MMap,
+				TestType:        testResult.TestType,
+				TokensPerSecond: testResult.TokensPerSecond,
+				Variation:       testResult.Variation,
+				TotalTokens:     calculateTotalTokens(testResult.TestType),
+				TotalTime:       calculateTotalTime(testResult.TestType, testResult.TokensPerSecond),
+				MemoryUsed:      0, // 可根据实际情况填充
+			}
+			allResults = append(allResults, benchmarkResult)
 		}
+
+		// 设置所有测试结果
+		status.AllResults = allResults
 		status.Status = "completed"
-		log.Printf("Benchmark completed with result: %+v", status.Results)
+		if len(status.AllResults) > 0 {
+			log.Printf("Benchmark completed with results: %+v", status.AllResults)
+		} else {
+			log.Printf("Benchmark completed but no results available")
+		}
 		status.EndTime = time.Now().Format(time.RFC3339)
 	}()
 
@@ -294,7 +305,7 @@ func (s *BenchmarkService) handleBenchmarkOutput(ctx context.Context, taskID str
 		s.tasks[taskID].Status = "failed"
 	} else {
 		s.tasks[taskID].Status = "completed"
-		s.tasks[taskID].Results = results
+		s.tasks[taskID].AllResults = []*model.BenchmarkResults{results}
 	}
 	s.tasks[taskID].EndTime = time.Now().Format(time.RFC3339)
 	s.mu.Unlock()

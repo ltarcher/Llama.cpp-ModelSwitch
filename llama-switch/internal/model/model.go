@@ -120,13 +120,13 @@ type ModelStatus struct {
 
 // BenchmarkStatus 基准测试状态
 type BenchmarkStatus struct {
-	TaskID     string             `json:"task_id"`           // 任务ID
-	Status     string             `json:"status"`            // 任务状态：pending/running/completed/failed/cancelled
-	Progress   float64            `json:"progress"`          // 进度（0-100）
-	StartTime  string             `json:"start_time"`        // 开始时间
-	EndTime    string             `json:"end_time"`          // 结束时间（如果已完成）
-	Results    *BenchmarkResults  `json:"results,omitempty"` // 测试结果（如果已完成）
-	CancelFunc context.CancelFunc `json:"-"`                 // 取消函数（不序列化）
+	TaskID     string              `json:"task_id"`               // 任务ID
+	Status     string              `json:"status"`                // 任务状态：pending/running/completed/failed/cancelled
+	Progress   float64             `json:"progress"`              // 进度（0-100）
+	StartTime  string              `json:"start_time"`            // 开始时间
+	EndTime    string              `json:"end_time"`              // 结束时间（如果已完成）
+	AllResults []*BenchmarkResults `json:"all_results,omitempty"` // 所有测试结果
+	CancelFunc context.CancelFunc  `json:"-"`                     // 取消函数（不序列化）
 }
 
 // BenchmarkResults 基准测试结果
