@@ -422,5 +422,4 @@ curl http://localhost:8080/api/v1/benchmark/status?task_id=<task_id>
 
 1. 确保llama.cpp的二进制文件（llama-server和llama-bench）已经正确编译并放置在配置指定的位置
 2. 确保模型文件(.gguf格式)已经放置在配置指定的模型目录中
-3. 同一时间只能运行一个模型服务实例
-4. 基准测试任务是异步执行的，需要通过task_id查询结果
+3. 基准测试任务是异步执行的，需要通过task_id查询结果

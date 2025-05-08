@@ -113,6 +113,11 @@ func (h *Handler) StopModel(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	modelName := query.Get("model_name")
 
+	if modelName == "" {
+		h.respondWithError(w, http.StatusBadRequest, "Model name is required")
+		return
+	}
+
 	// 获取当前模型状态
 	var targetStatus *model.ModelStatus
 	if modelName != "" {
@@ -140,13 +145,8 @@ func (h *Handler) StopModel(w http.ResponseWriter, r *http.Request) {
 
 	var err error
 	var status *model.ModelStatus
-	if modelName != "" {
-		// 按名称停止特定模型
-		status, err = h.ModelService.StopModelByName(modelName)
-	} else {
-		// 停止当前模型(兼容旧版本)
-		status, err = h.ModelService.StopModel()
-	}
+	// 按名称停止特定模型
+	status, err = h.ModelService.StopModel(modelName)
 
 	if err != nil {
 		log.Printf("Failed to stop model %s: %v", modelName, err)

@@ -369,38 +369,19 @@ func (s *ModelService) estimateVRAMUsage(cfg *model.ModelConfig) int {
 	return baseVRAM + cfg.Config.NGPULayers*perLayer
 }
 
-// StopModel 停止模型服务
-func (s *ModelService) StopModel() (*model.ModelStatus, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	runningModels := s.processManager.GetRunningModels()
-	if len(runningModels) == 0 {
-		return nil, fmt.Errorf("no model is currently running")
+// StopModel 停止指定模型
+func (s *ModelService) StopModel(model_name string) (*model.ModelStatus, error) {
+	if model_name == "" {
+		return nil, fmt.Errorf("model_name parameter is required")
 	}
 
-	// 默认停止第一个运行的模型
-	pid := runningModels[0].ProcessID
-	if err := s.processManager.StopProcess(); err != nil {
-		return nil, fmt.Errorf("failed to stop model service: %v", err)
-	}
-
-	// 获取停止的模型状态
-	stoppedModel := runningModels[0]
-	s.processManager.RemoveModel(pid)
-
-	return stoppedModel, nil
-}
-
-// StopModelByName 按名称停止模型
-func (s *ModelService) StopModelByName(name string) (*model.ModelStatus, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	// 直接从进程管理器停止指定名称的模型
-	modelStatus, err := s.processManager.StopModelByName(name)
+	modelStatus, err := s.processManager.StopModel(model_name)
 	if err != nil {
-		return nil, fmt.Errorf("failed to stop model '%s': %v", name, err)
+		return nil, fmt.Errorf("failed to stop model '%s': %v", model_name, err)
 	}
 
 	return modelStatus, nil

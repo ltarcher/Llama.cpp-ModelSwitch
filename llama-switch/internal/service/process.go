@@ -263,28 +263,41 @@ func (pm *ProcessManager) GetModelsByVRAMUsage() []*model.ModelStatus {
 	return models
 }
 
-// StopModelByName 按名称停止模型
-func (pm *ProcessManager) StopModelByName(name string) (*model.ModelStatus, error) {
+// StopModel 停止指定模型
+func (pm *ProcessManager) StopModel(model_name string) (*model.ModelStatus, error) {
+	if model_name == "" {
+		return nil, fmt.Errorf("model_name parameter is required")
+	}
+
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 
 	// 查找匹配的模型
 	var targetModel *model.ModelStatus
+	var targetPID int
+	found := false
+
 	for pid, m := range pm.models {
-		if m.ModelName == name {
+		if m.ModelName == model_name {
 			targetModel = m
-			// 停止进程
-			if err := pm.stopProcessByPID(pid); err != nil {
-				return nil, err
-			}
-			delete(pm.models, pid)
+			targetPID = pid
+			found = true
 			break
 		}
 	}
 
-	if targetModel == nil {
-		return nil, fmt.Errorf("model '%s' not found", name)
+	if !found {
+		return nil, fmt.Errorf("model '%s' not found", model_name)
 	}
+
+	// 停止进程
+	if err := pm.stopProcessByPID(targetPID); err != nil {
+		return nil, fmt.Errorf("failed to stop model '%s': %v", model_name, err)
+	}
+
+	// 清理模型状态
+	delete(pm.models, targetPID)
+	log.Printf("Model '%s' (PID: %d) stopped successfully", model_name, targetPID)
 
 	return targetModel, nil
 }
