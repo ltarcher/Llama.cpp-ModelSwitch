@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -73,12 +74,34 @@ type Config struct {
 
 // LoadConfig 加载配置
 func LoadConfig() (*Config, error) {
-	// 首先尝试加载.env文件
-	if err := godotenv.Load(); err != nil {
-		// 如果.env文件不存在，尝试加载.env.example
-		if err := godotenv.Load(".env.example"); err != nil {
-			fmt.Printf("Warning: No .env or .env.example file found\n")
+	// 获取当前工作目录
+	wd, err := os.Getwd()
+	if err != nil {
+		fmt.Printf("Warning: Failed to get working directory: %v\n", err)
+		wd = "."
+	}
+
+	// 尝试加载.env文件
+	envPaths := []string{
+		filepath.Join(wd, "llama-switch", ".env"),         // 开发环境路径
+		filepath.Join(wd, ".env"),                         // 当前目录
+		filepath.Join(wd, "llama-switch", ".env.example"), // 示例文件
+	}
+
+	var loaded bool
+	for _, path := range envPaths {
+		fmt.Printf("Trying to load .env from: %s\n", path)
+		if err := godotenv.Load(path); err == nil {
+			fmt.Printf("Successfully loaded .env from: %s\n", path)
+			loaded = true
+			break
+		} else {
+			fmt.Printf("Failed to load .env from %s: %v\n", path, err)
 		}
+	}
+
+	if !loaded {
+		fmt.Printf("Warning: Could not load any .env file (tried: %v)\n", envPaths)
 	}
 
 	cfg := &Config{}

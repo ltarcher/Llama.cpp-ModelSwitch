@@ -149,30 +149,80 @@ GET /api/v1/benchmark/status?task_id={task_id}
 
 ## 快速开始
 
-1. 复制配置文件：
+### 环境准备
+1. 确保已安装Go 1.20+和CUDA(如需GPU加速)
+2. 克隆仓库并进入项目目录：
 ```bash
-cp .env.example .env
+git clone https://github.com/your-repo/llama-switch.git
+cd llama-switch
 ```
 
-2. 编辑配置文件，设置必要的路径和参数：
+### 配置文件设置
+1. 复制环境变量文件：
+```bash
+cp llama-switch/.env.example llama-switch/.env
+```
+
+2. 编辑配置文件：
+```bash
+# Windows使用记事本
+notepad llama-switch/.env
+
+# Linux/macOS使用nano
+nano llama-switch/.env
+```
+
+3. 配置示例：
 ```env
+# 必需配置
 # llama.cpp 二进制文件路径
 LLAMA_SERVER_PATH=E:/Downloads/llama-b5293-bin-win-cuda-cu12.4-x64/llama-server.exe
 LLAMA_BENCH_PATH=E:/Downloads/llama-b5293-bin-win-cuda-cu12.4-x64/llama-bench.exe
 
-# 模型目录
-MODELS_DIR=E:/develop/Models
+MODELS_DIR=/path/to/models
 
-# API服务器配置
-SERVER_HOST=127.0.0.1
+# 可选配置
 SERVER_PORT=8080
+GPU_LAYERS=20  # GPU加速层数
 ```
 
-3. 启动服务：
+### 启动服务
+1. 开发模式：
 ```bash
-cd cmd/server
-go run main.go
+# 从项目根目录启动
+cd llama-switch
+go run cmd/server/main.go
+
+# 指定配置文件路径
+CONFIG_PATH=$(pwd)/llama-switch/.env go run cmd/server/main.go
 ```
+
+2. 生产模式：
+```bash
+# 编译
+go build -o llama-switch cmd/server/main.go
+
+# 运行
+./llama-switch
+```
+
+### 故障排查
+- 如果提示"找不到.env文件"：
+  ```bash
+  # 检查文件是否存在
+  ls -l llama-switch/.env
+  
+  # 使用绝对路径
+  CONFIG_PATH=/absolute/path/to/.env go run cmd/server/main.go
+  ```
+
+- 如果提示"权限不足"：
+  ```bash
+  # Linux/macOS
+  chmod 644 llama-switch/.env
+  
+  # Windows检查文件属性
+  ```
 
 ## 配置示例
 
