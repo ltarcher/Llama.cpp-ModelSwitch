@@ -389,35 +389,35 @@ func (s *ModelService) StopModelByName(name string) (*model.ModelStatus, error) 
 
 // GetModelStatus 获取模型状态
 func (s *ModelService) GetModelStatus(name string) []*model.ModelStatus {
-	s.mu.Lock() // 使用写锁以确保状态更新的原子性
+	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// 获取所有运行中的模型
+	// 统一从进程管理器获取所有模型状态
 	allModels := s.processManager.GetRunningModels()
 
-	// 确保当前模型状态与进程状态一致
+	// 同步当前模型状态
 	if s.currentStatus != nil {
-		if s.currentStatus.Running && !s.processManager.IsRunning() {
-			s.currentStatus.Running = false
-			// 从进程管理器中移除已停止的模型
-			s.processManager.RemoveModel(s.currentStatus.ProcessID)
+		// 检查当前模型是否在管理器中
+		found := false
+		for _, m := range allModels {
+			if m.ProcessID == s.currentStatus.ProcessID {
+				found = true
+				break
+			}
 		}
-		// 确保当前模型包含在结果中
-		if s.currentStatus.Running {
-			found := false
-			for _, m := range allModels {
-				if m.ProcessID == s.currentStatus.ProcessID {
-					found = true
-					break
-				}
-			}
-			if !found {
-				allModels = append(allModels, s.currentStatus)
-			}
+
+		// 如果当前模型正在运行但不在管理器中，添加到结果
+		if !found && s.currentStatus.Running {
+			allModels = append(allModels, s.currentStatus)
+		}
+
+		// 如果当前模型已停止，从管理器中移除
+		if !s.currentStatus.Running {
+			s.processManager.RemoveModel(s.currentStatus.ProcessID)
 		}
 	}
 
-	// 如果有指定名称，过滤匹配的模型
+	// 如果有指定名称，返回匹配的模型
 	if name != "" {
 		var result []*model.ModelStatus
 		for _, m := range allModels {
@@ -428,6 +428,7 @@ func (s *ModelService) GetModelStatus(name string) []*model.ModelStatus {
 		return result
 	}
 
+	// 返回所有模型状态
 	return allModels
 }
 
