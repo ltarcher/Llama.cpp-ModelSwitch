@@ -3,9 +3,11 @@ package service
 import (
 	"context"
 	"fmt"
+	"llama-switch/internal/model"
 	"log"
 	"os"
 	"os/exec"
+	"sort"
 	"sync"
 	"syscall"
 	"time"
@@ -16,6 +18,14 @@ type ProcessManager struct {
 	mu      sync.Mutex
 	process *os.Process
 	cmd     *exec.Cmd
+	models  map[int]*model.ModelStatus // 跟踪运行中的模型及其显存使用
+}
+
+// init 初始化ProcessManager
+func (pm *ProcessManager) init() {
+	if pm.models == nil {
+		pm.models = make(map[int]*model.ModelStatus)
+	}
 }
 
 // NewProcessManager 创建新的进程管理器
@@ -128,4 +138,40 @@ func (pm *ProcessManager) GetPID() int {
 		return pm.process.Pid
 	}
 	return 0
+}
+
+// AddModel 添加运行中的模型
+func (pm *ProcessManager) AddModel(pid int, m *model.ModelStatus) {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	pm.init()
+	pm.models[pid] = m
+}
+
+// RemoveModel 移除已停止的模型
+func (pm *ProcessManager) RemoveModel(pid int) {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	delete(pm.models, pid)
+}
+
+// GetRunningModels 获取运行中的模型列表
+func (pm *ProcessManager) GetRunningModels() []*model.ModelStatus {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	pm.init()
+	models := make([]*model.ModelStatus, 0, len(pm.models))
+	for _, m := range pm.models {
+		models = append(models, m)
+	}
+	return models
+}
+
+// GetModelsByVRAMUsage 按显存使用排序(降序)
+func (pm *ProcessManager) GetModelsByVRAMUsage() []*model.ModelStatus {
+	models := pm.GetRunningModels()
+	sort.Slice(models, func(i, j int) bool {
+		return models[i].VRAMUsage > models[j].VRAMUsage
+	})
+	return models
 }

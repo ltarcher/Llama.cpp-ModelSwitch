@@ -36,6 +36,13 @@ func (h *Handler) SwitchModel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 验证ForceVRAM参数
+	if cfg.ForceVRAM && cfg.Config.NGPULayers <= 0 {
+		h.respondWithError(w, http.StatusBadRequest,
+			"ForceVRAM requires NGPULayers > 0")
+		return
+	}
+
 	if err := h.ModelService.ValidateModelConfig(&cfg); err != nil {
 		h.respondWithError(w, http.StatusBadRequest, err.Error())
 		return

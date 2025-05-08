@@ -7,6 +7,7 @@ import (
 // ModelConfig 模型服务配置
 type ModelConfig struct {
 	ModelPath string `json:"model_path"` // 模型文件路径
+	ForceVRAM bool   `json:"force_vram"` // 是否强制使用显存
 	Config    struct {
 		// 服务器配置
 		Host    string `json:"host"`    // 监听地址
@@ -116,6 +117,7 @@ type ModelStatus struct {
 	Port      int    `json:"port"`       // 当前服务端口
 	StartTime string `json:"start_time"` // 服务启动时间
 	ProcessID int    `json:"process_id"` // 进程ID
+	VRAMUsage int    `json:"vram_usage"` // 显存使用量(MB)
 }
 
 // BenchmarkStatus 基准测试状态

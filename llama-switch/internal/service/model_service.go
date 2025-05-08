@@ -3,6 +3,7 @@ package service
 import (
 	"fmt"
 	"log"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -32,8 +33,51 @@ func NewModelService(cfg *config.Config) *ModelService {
 	}
 }
 
+// freeVRAM 释放足够显存(优先释放大显存模型)
+func (s *ModelService) freeVRAM(required int) error {
+	models := s.processManager.GetModelsByVRAMUsage()
+	freed := 0
+
+	for _, m := range models {
+		if freed >= required {
+			break
+		}
+
+		// 停止模型进程
+		if err := s.processManager.StopProcess(); err != nil {
+			return fmt.Errorf("failed to stop model (PID: %d): %v", m.ProcessID, err)
+		}
+
+		// 更新已释放显存
+		freed += m.VRAMUsage
+		s.processManager.RemoveModel(m.ProcessID)
+	}
+
+	if freed < required {
+		return fmt.Errorf("failed to free enough VRAM (required: %dMB, freed: %dMB)",
+			required, freed)
+	}
+
+	return nil
+}
+
 // StartModel 启动模型服务
 func (s *ModelService) StartModel(cfg *model.ModelConfig) error {
+	// 显存检查
+	if cfg.ForceVRAM {
+		required := s.estimateVRAMUsage(cfg)
+		available, err := s.getAvailableVRAM()
+		if err != nil {
+			return fmt.Errorf("failed to check VRAM: %v", err)
+		}
+
+		if available < required {
+			if err := s.freeVRAM(required - available); err != nil {
+				return fmt.Errorf("insufficient VRAM (required: %dMB, available: %dMB): %v",
+					required, available, err)
+			}
+		}
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -215,15 +259,50 @@ func (s *ModelService) StartModel(cfg *model.ModelConfig) error {
 	}
 
 	// 更新状态
-	s.currentStatus = &model.ModelStatus{
+	status := &model.ModelStatus{
 		Running:   true,
 		ModelPath: modelPath,
 		Port:      cfg.Config.Port,
 		StartTime: time.Now().Format(time.RFC3339),
 		ProcessID: s.processManager.GetPID(),
+		VRAMUsage: s.estimateVRAMUsage(cfg),
 	}
+	s.currentStatus = status
+
+	// 添加到进程管理器
+	s.processManager.AddModel(status.ProcessID, status)
 
 	return nil
+}
+
+// getAvailableVRAM 获取当前可用显存(MB)
+func (s *ModelService) getAvailableVRAM() (int, error) {
+	cmd := exec.Command("nvidia-smi", "--query-gpu=memory.free", "--format=csv,noheader,nounits")
+	output, err := cmd.Output()
+	if err != nil {
+		return 0, fmt.Errorf("failed to query GPU memory: %v", err)
+	}
+
+	// 解析输出，取第一个GPU的可用显存
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	if len(lines) == 0 {
+		return 0, fmt.Errorf("no GPU memory information available")
+	}
+
+	freeMB, err := strconv.Atoi(strings.TrimSpace(lines[0]))
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse GPU memory: %v", err)
+	}
+
+	return freeMB, nil
+}
+
+// estimateVRAMUsage 估算模型所需显存(MB)
+func (s *ModelService) estimateVRAMUsage(cfg *model.ModelConfig) int {
+	// 简单估算：每GPU层大约需要200MB显存
+	baseVRAM := 500 // 基础显存需求
+	perLayer := 200 // 每层显存需求
+	return baseVRAM + cfg.Config.NGPULayers*perLayer
 }
 
 // StopModel 停止模型服务
