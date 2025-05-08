@@ -18,7 +18,6 @@ import (
 type ModelService struct {
 	config         *config.Config
 	processManager *ProcessManager
-	currentStatus  *model.ModelStatus
 	mu             sync.RWMutex
 }
 
@@ -27,9 +26,6 @@ func NewModelService(cfg *config.Config) *ModelService {
 	return &ModelService{
 		config:         cfg,
 		processManager: NewProcessManager(),
-		currentStatus: &model.ModelStatus{
-			Running: false,
-		},
 	}
 }
 
@@ -44,12 +40,10 @@ func (s *ModelService) freeVRAM(required int) error {
 	freed := 0
 	stoppedModels := make([]string, 0)
 
-	for _, m := range models {
-		// 不要停止当前正在切换的模型
-		if s.currentStatus != nil && m.ProcessID == s.currentStatus.ProcessID {
-			continue
-		}
+	// 记录开始释放显存
+	log.Printf("Attempting to free %dMB VRAM...", required)
 
+	for _, m := range models {
 		// 尝试停止模型进程
 		if err := s.processManager.stopProcessByPID(m.ProcessID); err != nil {
 			log.Printf("Warning: failed to stop model %s (PID: %d): %v",
@@ -60,10 +54,13 @@ func (s *ModelService) freeVRAM(required int) error {
 		// 更新已释放显存
 		freed += m.VRAMUsage
 		s.processManager.RemoveModel(m.ProcessID)
-		stoppedModels = append(stoppedModels, m.ModelName)
+		stoppedModels = append(stoppedModels,
+			fmt.Sprintf("%s(%dMB)", m.ModelName, m.VRAMUsage))
+
+		log.Printf("Stopped model %s, freed %dMB VRAM", m.ModelName, m.VRAMUsage)
 
 		if freed >= required {
-			log.Printf("Freed %dMB VRAM by stopping models: %s",
+			log.Printf("Successfully freed %dMB VRAM by stopping models: %s",
 				freed, strings.Join(stoppedModels, ", "))
 			return nil
 		}
@@ -342,25 +339,30 @@ func (s *ModelService) estimateVRAMUsage(cfg *model.ModelConfig) int {
 	return baseVRAM + cfg.Config.NGPULayers*perLayer
 }
 
-// StopModel 停止模型服务
+// StopModel 停止最后启动的模型服务
 func (s *ModelService) StopModel() (*model.ModelStatus, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.currentStatus == nil || !s.currentStatus.Running {
+	// 获取所有运行中的模型
+	models := s.processManager.GetRunningModels()
+	if len(models) == 0 {
 		return nil, fmt.Errorf("no model is currently running")
 	}
 
-	if err := s.processManager.StopProcess(); err != nil {
+	// 获取最后启动的模型（假设列表中最后一个是最近启动的）
+	lastModel := models[len(models)-1]
+
+	// 停止进程
+	if err := s.processManager.stopProcessByPID(lastModel.ProcessID); err != nil {
 		return nil, fmt.Errorf("failed to stop model service: %v", err)
 	}
 
-	stoppedModel := s.currentStatus
-	s.currentStatus = &model.ModelStatus{
-		Running: false,
-	}
+	// 从进程管理器中移除
+	s.processManager.RemoveModel(lastModel.ProcessID)
 
-	return stoppedModel, nil
+	log.Printf("Stopped model '%s' (PID: %d)", lastModel.ModelName, lastModel.ProcessID)
+	return lastModel, nil
 }
 
 // StopModelByName 按名称停止模型
@@ -368,23 +370,30 @@ func (s *ModelService) StopModelByName(name string) (*model.ModelStatus, error) 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// 检查是否是当前模型
-	if s.currentStatus != nil && s.currentStatus.ModelName == name {
-		if err := s.processManager.StopProcess(); err != nil {
-			return nil, fmt.Errorf("failed to stop model '%s': %v", name, err)
+	// 查找指定名称的模型
+	models := s.processManager.GetRunningModels()
+	var targetModel *model.ModelStatus
+	for _, m := range models {
+		if m.ModelName == name {
+			targetModel = m
+			break
 		}
-		stoppedModel := s.currentStatus
-		s.currentStatus = &model.ModelStatus{Running: false}
-		return stoppedModel, nil
 	}
 
-	// 如果不是当前模型，尝试从进程管理器停止
-	modelStatus, err := s.processManager.StopModelByName(name)
-	if err != nil {
+	if targetModel == nil {
+		return nil, fmt.Errorf("model '%s' not found or not running", name)
+	}
+
+	// 停止进程
+	if err := s.processManager.stopProcessByPID(targetModel.ProcessID); err != nil {
 		return nil, fmt.Errorf("failed to stop model '%s': %v", name, err)
 	}
 
-	return modelStatus, nil
+	// 从进程管理器中移除
+	s.processManager.RemoveModel(targetModel.ProcessID)
+
+	log.Printf("Stopped model '%s' (PID: %d)", targetModel.ModelName, targetModel.ProcessID)
+	return targetModel, nil
 }
 
 // GetModelStatus 获取模型状态
