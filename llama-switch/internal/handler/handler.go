@@ -34,6 +34,9 @@ func (h *Handler) SwitchModel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 打印当前运行的所有模型
+	h.logRunningModels("switch")
+
 	var cfg model.ModelConfig
 	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
 		h.respondWithError(w, http.StatusBadRequest, "Invalid request body")
@@ -87,6 +90,9 @@ func (h *Handler) SwitchModel(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("Model %s started successfully (PID: %d)", cfg.ModelName, statuses[0].ProcessID)
 
+	// 打印当前运行的所有模型
+	h.logRunningModels("switch")
+
 	h.respondWithJSON(w, http.StatusOK, model.NewAPIResponse(
 		true,
 		fmt.Sprintf("Model '%s' switched successfully", cfg.ModelName),
@@ -104,6 +110,9 @@ func (h *Handler) StopModel(w http.ResponseWriter, r *http.Request) {
 		h.respondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
+
+	// 打印当前运行的所有模型
+	h.logRunningModels("stop")
 
 	// 解析请求参数
 	query := r.URL.Query()
@@ -158,6 +167,9 @@ func (h *Handler) StopModel(w http.ResponseWriter, r *http.Request) {
 
 	// 记录成功日志
 	log.Printf("Successfully stopped model: %s", modelName)
+
+	// 打印当前运行的所有模型
+	h.logRunningModels("stop")
 
 	// 构建响应数据
 	responseData := map[string]interface{}{
@@ -238,6 +250,10 @@ func (h *Handler) GetModelStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Printf("Returning status for %d models", len(statuses))
+
+	// 打印当前运行的所有模型
+	h.logRunningModels("status")
+
 	h.respondWithJSON(w, http.StatusOK, model.NewAPIResponse(
 		true,
 		"Model status retrieved successfully",
