@@ -3,8 +3,10 @@ package service
 import (
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -18,7 +20,6 @@ import (
 type ModelService struct {
 	config         *config.Config
 	processManager *ProcessManager
-	currentStatus  *model.ModelStatus
 	mu             sync.RWMutex
 }
 
@@ -27,9 +28,6 @@ func NewModelService(cfg *config.Config) *ModelService {
 	return &ModelService{
 		config:         cfg,
 		processManager: NewProcessManager(),
-		currentStatus: &model.ModelStatus{
-			Running: false,
-		},
 	}
 }
 
@@ -45,10 +43,7 @@ func (s *ModelService) freeVRAM(required int) error {
 	stoppedModels := make([]string, 0)
 
 	for _, m := range models {
-		// 不要停止当前正在切换的模型
-		if s.currentStatus != nil && m.ProcessID == s.currentStatus.ProcessID {
-			continue
-		}
+		// 可以停止任何模型来释放VRAM
 
 		// 尝试停止模型进程
 		if err := s.processManager.stopProcessByPID(m.ProcessID); err != nil {
@@ -73,10 +68,15 @@ func (s *ModelService) freeVRAM(required int) error {
 		freed, required, strings.Join(stoppedModels, ", "))
 }
 
-// StartModel 启动模型服务
-func (s *ModelService) StartModel(cfg *model.ModelConfig) error {
+// StartModel 启动模型服务并返回状态
+func (s *ModelService) StartModel(cfg *model.ModelConfig) (status *model.ModelStatus, err error) {
+	// 初始化状态对象
+	status = &model.ModelStatus{
+		ModelName: cfg.ModelName,
+		Running:   false,
+	}
 	if cfg.ModelName == "" {
-		return fmt.Errorf("model name is required")
+		return nil, fmt.Errorf("model name is required")
 	}
 
 	// 检查是否存在同名模型
@@ -84,38 +84,11 @@ func (s *ModelService) StartModel(cfg *model.ModelConfig) error {
 	if len(existingModels) > 0 {
 		// 如果模型已存在且正在运行，直接返回
 		if existingModels[0].Running {
-			return fmt.Errorf("model with name '%s' is already running", cfg.ModelName)
+			return nil, fmt.Errorf("model with name '%s' is already running", cfg.ModelName)
 		}
 		// 如果模型存在但已停止，从管理器中移除
 		s.processManager.RemoveModel(existingModels[0].ProcessID)
 	}
-
-	// 估算所需显存
-	requiredVRAM := s.estimateVRAMUsage(cfg)
-
-	// 检查显存
-	if cfg.ForceVRAM || cfg.Config.NGPULayers > 0 {
-		available, err := s.getAvailableVRAM()
-		if err != nil {
-			return fmt.Errorf("failed to check VRAM: %v", err)
-		}
-
-		if available < requiredVRAM {
-			// 如果强制使用显存，尝试释放
-			if cfg.ForceVRAM {
-				if err := s.freeVRAM(requiredVRAM - available); err != nil {
-					return fmt.Errorf("insufficient VRAM (required: %dMB, available: %dMB): %v",
-						requiredVRAM, available, err)
-				}
-			} else {
-				// 如果不强制使用显存，返回错误
-				return fmt.Errorf("insufficient VRAM (required: %dMB, available: %dMB). Use force_vram=true to force start",
-					requiredVRAM, available)
-			}
-		}
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	// 验证模型文件路径
 	modelPath := cfg.ModelPath
@@ -123,8 +96,53 @@ func (s *ModelService) StartModel(cfg *model.ModelConfig) error {
 		modelPath = filepath.Join(s.config.ModelsDir, cfg.ModelPath)
 	}
 	if _, err := filepath.Abs(modelPath); err != nil {
-		return fmt.Errorf("invalid model path: %v", err)
+		return nil, fmt.Errorf("invalid model path: %v", err)
 	}
+
+	// 获取模型文件大小
+	fileInfo, err := os.Stat(modelPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get model file info: %v", err)
+	}
+	modelSizeMB := fileInfo.Size() / (1024 * 1024)
+
+	// 估算所需显存
+	requiredVRAM := min(s.estimateVRAMUsage(cfg), int(modelSizeMB))
+
+	// 记录估算信息
+	log.Printf("Model VRAM estimation - FileSize: %dMB, EstimatedVRAM: %dMB",
+		modelSizeMB, requiredVRAM)
+
+	// 检查显存
+	if cfg.ForceVRAM || cfg.Config.NGPULayers > 0 {
+		// 计算所有运行中模型使用的VRAM总和
+		var usedVRAM int
+		for _, m := range s.processManager.GetRunningModels() {
+			usedVRAM += m.VRAMUsage
+		}
+
+		available, err := s.getAvailableVRAM()
+		if err != nil {
+			return nil, fmt.Errorf("failed to check VRAM: %v", err)
+		}
+
+		totalAvailable := available - usedVRAM
+		if totalAvailable < requiredVRAM {
+			// 如果强制使用显存，尝试释放
+			if cfg.ForceVRAM {
+				if err := s.freeVRAM(requiredVRAM - totalAvailable); err != nil {
+					return nil, fmt.Errorf("insufficient VRAM (required: %dMB based on model size %dMB, available: %dMB): %v",
+						requiredVRAM, modelSizeMB, totalAvailable, err)
+				}
+			} else {
+				// 如果不强制使用显存，返回错误
+				return nil, fmt.Errorf("insufficient VRAM (required: %dMB based on model size %dMB, available: %dMB). Use force_vram=true to force start",
+					requiredVRAM, modelSizeMB, totalAvailable)
+			}
+		}
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	// 构建命令行参数
 	args := []string{
@@ -291,25 +309,34 @@ func (s *ModelService) StartModel(cfg *model.ModelConfig) error {
 
 	// 启动服务进程
 	if err := s.processManager.StartProcess(s.config.LLamaPath.Server, args); err != nil {
-		return fmt.Errorf("failed to start model service: %v", err)
+		return nil, fmt.Errorf("failed to start model service: %v", err)
 	}
+	pid := s.processManager.GetPID()
 
-	// 更新状态
-	status := &model.ModelStatus{
+	// 创建并添加模型状态到进程管理器
+	status = &model.ModelStatus{
 		Running:   true,
 		ModelName: cfg.ModelName,
 		ModelPath: modelPath,
 		Port:      cfg.Config.Port,
 		StartTime: time.Now().Format(time.RFC3339),
-		ProcessID: s.processManager.GetPID(),
-		VRAMUsage: s.estimateVRAMUsage(cfg),
+		ProcessID: pid,
+		VRAMUsage: requiredVRAM,
 	}
-	s.currentStatus = status
+	s.processManager.AddModel(pid, status)
 
-	// 添加到进程管理器
-	s.processManager.AddModel(status.ProcessID, status)
+	// Windows平台需要特殊处理进程检测
+	if runtime.GOOS == "windows" {
+		go func() {
+			time.Sleep(5 * time.Second) // 等待进程稳定
+			if !s.processManager.IsProcessRunning(pid) {
+				log.Printf("Warning: Process %d (model: %s) failed to start", pid, cfg.ModelName)
+				s.processManager.RemoveModel(pid)
+			}
+		}()
+	}
 
-	return nil
+	return status, nil
 }
 
 // getAvailableVRAM 获取当前可用显存(MB)
@@ -347,18 +374,20 @@ func (s *ModelService) StopModel() (*model.ModelStatus, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.currentStatus == nil || !s.currentStatus.Running {
+	runningModels := s.processManager.GetRunningModels()
+	if len(runningModels) == 0 {
 		return nil, fmt.Errorf("no model is currently running")
 	}
 
+	// 默认停止第一个运行的模型
+	pid := runningModels[0].ProcessID
 	if err := s.processManager.StopProcess(); err != nil {
 		return nil, fmt.Errorf("failed to stop model service: %v", err)
 	}
 
-	stoppedModel := s.currentStatus
-	s.currentStatus = &model.ModelStatus{
-		Running: false,
-	}
+	// 获取停止的模型状态
+	stoppedModel := runningModels[0]
+	s.processManager.RemoveModel(pid)
 
 	return stoppedModel, nil
 }
@@ -368,17 +397,7 @@ func (s *ModelService) StopModelByName(name string) (*model.ModelStatus, error) 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// 检查是否是当前模型
-	if s.currentStatus != nil && s.currentStatus.ModelName == name {
-		if err := s.processManager.StopProcess(); err != nil {
-			return nil, fmt.Errorf("failed to stop model '%s': %v", name, err)
-		}
-		stoppedModel := s.currentStatus
-		s.currentStatus = &model.ModelStatus{Running: false}
-		return stoppedModel, nil
-	}
-
-	// 如果不是当前模型，尝试从进程管理器停止
+	// 直接从进程管理器停止指定名称的模型
 	modelStatus, err := s.processManager.StopModelByName(name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to stop model '%s': %v", name, err)
@@ -392,30 +411,8 @@ func (s *ModelService) GetModelStatus(name string) []*model.ModelStatus {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// 统一从进程管理器获取所有模型状态
+	// 从进程管理器获取所有运行中的模型
 	allModels := s.processManager.GetRunningModels()
-
-	// 同步当前模型状态
-	if s.currentStatus != nil {
-		// 检查当前模型是否在管理器中
-		found := false
-		for _, m := range allModels {
-			if m.ProcessID == s.currentStatus.ProcessID {
-				found = true
-				break
-			}
-		}
-
-		// 如果当前模型正在运行但不在管理器中，添加到结果
-		if !found && s.currentStatus.Running {
-			allModels = append(allModels, s.currentStatus)
-		}
-
-		// 如果当前模型已停止，从管理器中移除
-		if !s.currentStatus.Running {
-			s.processManager.RemoveModel(s.currentStatus.ProcessID)
-		}
-	}
 
 	// 如果有指定名称，返回匹配的模型
 	if name != "" {

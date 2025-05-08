@@ -7,7 +7,10 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"runtime"
 	"sort"
+	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -147,6 +150,35 @@ func (pm *ProcessManager) GetPID() int {
 	return 0
 }
 
+// IsProcessRunning 检查指定PID的进程是否在运行
+func (pm *ProcessManager) IsProcessRunning(pid int) bool {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
+	// 检查当前管理的进程
+	if pm.process != nil && pm.process.Pid == pid {
+		return true
+	}
+
+	// 检查系统进程状态
+	if runtime.GOOS == "windows" {
+		// Windows平台使用tasklist检查进程
+		out, err := exec.Command("tasklist", "/fi", fmt.Sprintf("PID eq %d", pid)).Output()
+		if err != nil {
+			return false
+		}
+		return strings.Contains(string(out), strconv.Itoa(pid))
+	} else {
+		// Unix平台使用Signal(0)检查进程
+		process, err := os.FindProcess(pid)
+		if err != nil {
+			return false
+		}
+		err = process.Signal(syscall.Signal(0))
+		return err == nil
+	}
+}
+
 // AddModel 添加运行中的模型
 func (pm *ProcessManager) AddModel(pid int, m *model.ModelStatus) {
 	pm.mu.Lock()
@@ -162,6 +194,13 @@ func (pm *ProcessManager) RemoveModel(pid int) {
 	delete(pm.models, pid)
 }
 
+// UpdateModel 更新指定PID的模型状态
+func (pm *ProcessManager) UpdateModel(pid int, status *model.ModelStatus) {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	pm.models[pid] = status
+}
+
 // GetRunningModels 获取运行中的模型列表
 func (pm *ProcessManager) GetRunningModels() []*model.ModelStatus {
 	pm.mu.Lock()
@@ -173,17 +212,30 @@ func (pm *ProcessManager) GetRunningModels() []*model.ModelStatus {
 
 	for pid, m := range pm.models {
 		// 验证进程是否还在运行
-		process, err := os.FindProcess(pid)
-		if err != nil {
-			log.Printf("Warning: Failed to find process %d, marking for removal: %v", pid, err)
-			toRemove = append(toRemove, pid)
-			continue
+		var isRunning bool
+		if runtime.GOOS == "windows" {
+			// Windows平台使用tasklist检查进程
+			out, err := exec.Command("tasklist", "/fi", fmt.Sprintf("PID eq %d", pid)).Output()
+			if err != nil {
+				log.Printf("Warning: Failed to check process %d status: %v", pid, err)
+				toRemove = append(toRemove, pid)
+				continue
+			}
+			isRunning = strings.Contains(string(out), strconv.Itoa(pid))
+		} else {
+			// Unix平台使用Signal(0)检查进程
+			process, err := os.FindProcess(pid)
+			if err != nil {
+				log.Printf("Warning: Failed to find process %d: %v", pid, err)
+				toRemove = append(toRemove, pid)
+				continue
+			}
+			err = process.Signal(syscall.Signal(0))
+			isRunning = err == nil
 		}
 
-		// 尝试发送空信号来检查进程是否存活
-		if err := process.Signal(syscall.Signal(0)); err != nil {
-			log.Printf("Warning: Process %d (model: %s) is not responding, marking for removal: %v",
-				pid, m.ModelName, err)
+		if !isRunning {
+			log.Printf("Warning: Process %d (model: %s) is not running", pid, m.ModelName)
 			toRemove = append(toRemove, pid)
 			continue
 		}

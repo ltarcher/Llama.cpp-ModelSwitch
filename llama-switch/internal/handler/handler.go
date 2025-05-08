@@ -57,10 +57,15 @@ func (h *Handler) SwitchModel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 记录请求日志
+	// 记录请求日志和当前运行模型
+	currentModels := h.ModelService.GetModelStatus("")
+	log.Printf("Current running models (%d):", len(currentModels))
+	for i, m := range currentModels {
+		log.Printf("  [%d] %s (PID: %d, VRAM: %dMB)", i+1, m.ModelName, m.ProcessID, m.VRAMUsage)
+	}
 	log.Printf("Starting model switch: %s (%s)", cfg.ModelName, cfg.ModelPath)
 
-	if err := h.ModelService.StartModel(&cfg); err != nil {
+	if _, err := h.ModelService.StartModel(&cfg); err != nil {
 		log.Printf("Failed to start model %s: %v", cfg.ModelName, err)
 		h.respondWithError(w, http.StatusInternalServerError,
 			fmt.Sprintf("Failed to start model: %v", err))
@@ -121,7 +126,16 @@ func (h *Handler) StopModel(w http.ResponseWriter, r *http.Request) {
 		targetStatus = statuses[0]
 	}
 
-	// 记录停止请求
+	// 获取并记录当前所有运行模型
+	currentModels := h.ModelService.GetModelStatus("")
+	log.Printf("Current running models before stopping (%d):", len(currentModels))
+	for i, m := range currentModels {
+		log.Printf("  [%d] Model: %s", i+1, m.ModelName)
+		log.Printf("     PID: %d", m.ProcessID)
+		log.Printf("     VRAM: %dMB", m.VRAMUsage)
+		log.Printf("     StartTime: %s", m.StartTime)
+		log.Printf("     Port: %d", m.Port)
+	}
 	log.Printf("Stopping model: %s", modelName)
 
 	var err error
@@ -186,7 +200,23 @@ func (h *Handler) GetModelStatus(w http.ResponseWriter, r *http.Request) {
 
 	// 解析查询参数
 	modelName := r.URL.Query().Get("model_name")
-	log.Printf("Requesting status for model: %s", modelName)
+
+	// 获取并记录当前所有运行模型
+	currentModels := h.ModelService.GetModelStatus("")
+	log.Printf("Current running models (%d):", len(currentModels))
+	for i, m := range currentModels {
+		log.Printf("  [%d] Model: %s", i+1, m.ModelName)
+		log.Printf("     PID: %d", m.ProcessID)
+		log.Printf("     VRAM: %dMB", m.VRAMUsage)
+		log.Printf("     StartTime: %s", m.StartTime)
+		log.Printf("     Port: %d", m.Port)
+	}
+
+	if modelName != "" {
+		log.Printf("Requesting status for specific model: %s", modelName)
+	} else {
+		log.Printf("Requesting status for all models")
+	}
 
 	// 获取模型状态
 	statuses := h.ModelService.GetModelStatus(modelName)
