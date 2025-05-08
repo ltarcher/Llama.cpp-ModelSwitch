@@ -261,6 +261,7 @@ func (s *ModelService) StartModel(cfg *model.ModelConfig) error {
 	// 更新状态
 	status := &model.ModelStatus{
 		Running:   true,
+		ModelName: cfg.ModelName,
 		ModelPath: modelPath,
 		Port:      cfg.Config.Port,
 		StartTime: time.Now().Format(time.RFC3339),
@@ -306,19 +307,48 @@ func (s *ModelService) estimateVRAMUsage(cfg *model.ModelConfig) int {
 }
 
 // StopModel 停止模型服务
-func (s *ModelService) StopModel() error {
+func (s *ModelService) StopModel() (*model.ModelStatus, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if err := s.processManager.StopProcess(); err != nil {
-		return fmt.Errorf("failed to stop model service: %v", err)
+	if s.currentStatus == nil || !s.currentStatus.Running {
+		return nil, fmt.Errorf("no model is currently running")
 	}
 
+	if err := s.processManager.StopProcess(); err != nil {
+		return nil, fmt.Errorf("failed to stop model service: %v", err)
+	}
+
+	stoppedModel := s.currentStatus
 	s.currentStatus = &model.ModelStatus{
 		Running: false,
 	}
 
-	return nil
+	return stoppedModel, nil
+}
+
+// StopModelByName 按名称停止模型
+func (s *ModelService) StopModelByName(name string) (*model.ModelStatus, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// 检查是否是当前模型
+	if s.currentStatus != nil && s.currentStatus.ModelName == name {
+		if err := s.processManager.StopProcess(); err != nil {
+			return nil, fmt.Errorf("failed to stop model '%s': %v", name, err)
+		}
+		stoppedModel := s.currentStatus
+		s.currentStatus = &model.ModelStatus{Running: false}
+		return stoppedModel, nil
+	}
+
+	// 如果不是当前模型，尝试从进程管理器停止
+	modelStatus, err := s.processManager.StopModelByName(name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to stop model '%s': %v", name, err)
+	}
+
+	return modelStatus, nil
 }
 
 // GetStatus 获取当前模型服务状态

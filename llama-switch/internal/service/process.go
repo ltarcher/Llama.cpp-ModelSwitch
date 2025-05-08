@@ -175,3 +175,70 @@ func (pm *ProcessManager) GetModelsByVRAMUsage() []*model.ModelStatus {
 	})
 	return models
 }
+
+// StopModelByName 按名称停止模型
+func (pm *ProcessManager) StopModelByName(name string) (*model.ModelStatus, error) {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
+	// 查找匹配的模型
+	var targetModel *model.ModelStatus
+	for pid, m := range pm.models {
+		if m.ModelName == name {
+			targetModel = m
+			// 停止进程
+			if err := pm.stopProcessByPID(pid); err != nil {
+				return nil, err
+			}
+			delete(pm.models, pid)
+			break
+		}
+	}
+
+	if targetModel == nil {
+		return nil, fmt.Errorf("model '%s' not found", name)
+	}
+
+	return targetModel, nil
+}
+
+// stopProcessByPID 停止指定PID的进程
+func (pm *ProcessManager) stopProcessByPID(pid int) error {
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		return fmt.Errorf("failed to find process %d: %v", pid, err)
+	}
+
+	// 创建超时上下文
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// 使用通道接收停止结果
+	done := make(chan error, 1)
+	go func() {
+		// 发送中断信号
+		if err := process.Signal(os.Interrupt); err != nil {
+			// 如果发送中断信号失败，则强制结束进程
+			if err := process.Kill(); err != nil {
+				done <- fmt.Errorf("failed to kill process %d: %v", pid, err)
+				return
+			}
+		}
+
+		// 等待进程退出
+		_, err := process.Wait()
+		done <- err
+	}()
+
+	// 等待停止完成或超时
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		// 超时后强制终止进程
+		if err := process.Kill(); err != nil {
+			return fmt.Errorf("failed to kill process %d after timeout: %v", pid, err)
+		}
+		return fmt.Errorf("process %d termination timed out", pid)
+	}
+}

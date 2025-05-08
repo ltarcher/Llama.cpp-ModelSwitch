@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"llama-switch/internal/config"
@@ -68,15 +69,33 @@ func (h *Handler) StopModel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.ModelService.StopModel(); err != nil {
+	// 解析请求参数
+	query := r.URL.Query()
+	modelName := query.Get("model_name")
+
+	var err error
+	var status *model.ModelStatus
+	if modelName != "" {
+		// 按名称停止特定模型
+		status, err = h.ModelService.StopModelByName(modelName)
+	} else {
+		// 停止当前模型(兼容旧版本)
+		status, err = h.ModelService.StopModel()
+	}
+
+	if err != nil {
 		h.respondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
+	msg := "Model stopped successfully"
+	if modelName != "" {
+		msg = fmt.Sprintf("Model '%s' stopped successfully", modelName)
+	}
 	h.respondWithJSON(w, http.StatusOK, model.NewAPIResponse(
 		true,
-		"Model stopped successfully",
-		nil,
+		msg,
+		status,
 		"",
 	))
 }

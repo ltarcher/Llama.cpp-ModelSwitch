@@ -7,6 +7,7 @@ import (
 // ModelConfig 模型服务配置
 type ModelConfig struct {
 	ModelPath string `json:"model_path"` // 模型文件路径
+	ModelName string `json:"model_name"` // 模型名称标识
 	ForceVRAM bool   `json:"force_vram"` // 是否强制使用显存
 	Config    struct {
 		// 服务器配置
@@ -113,6 +114,7 @@ type BenchmarkConfig struct {
 // ModelStatus 模型服务状态
 type ModelStatus struct {
 	Running   bool   `json:"running"`    // 是否正在运行
+	ModelName string `json:"model_name"` // 模型名称标识
 	ModelPath string `json:"model_path"` // 当前运行的模型路径
 	Port      int    `json:"port"`       // 当前服务端口
 	StartTime string `json:"start_time"` // 服务启动时间
