@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"llama-switch/internal/config"
@@ -312,6 +313,27 @@ func (h *Handler) respondWithError(w http.ResponseWriter, code int, message stri
 		nil,
 		message,
 	))
+}
+
+// logRunningModels 打印当前运行的模型列表
+func (h *Handler) logRunningModels(operation string) {
+	// 获取所有运行中的模型
+	allModels := h.ModelService.GetModelStatus("")
+	var runningModels []string
+	for _, m := range allModels {
+		runningModels = append(runningModels, fmt.Sprintf(
+			"%s (PID: %d, VRAM: %dMB)",
+			m.ModelName,
+			m.ProcessID,
+			m.VRAMUsage,
+		))
+	}
+
+	log.Printf("[%s] Current running models (%d):\n%s",
+		operation,
+		len(runningModels),
+		strings.Join(runningModels, "\n"),
+	)
 }
 
 // respondWithJSON 返回JSON响应
