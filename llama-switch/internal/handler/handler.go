@@ -54,10 +54,17 @@ func (h *Handler) SwitchModel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 获取当前模型状态
+	statuses := h.ModelService.GetModelStatus(cfg.ModelName)
+	if len(statuses) == 0 {
+		h.respondWithError(w, http.StatusInternalServerError, "Failed to get model status after starting")
+		return
+	}
+
 	h.respondWithJSON(w, http.StatusOK, model.NewAPIResponse(
 		true,
 		"Model switched successfully",
-		h.ModelService.GetStatus(),
+		statuses[0], // 返回第一个模型状态
 		"",
 	))
 }

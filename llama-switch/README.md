@@ -44,7 +44,55 @@ POST /api/v1/model/stop
 
 3. 获取模型状态
 ```http
-GET /api/v1/model/status
+GET /api/v1/model/status[?model_name=名称]
+```
+
+参数：
+- `model_name` (可选): 指定要查询的模型名称
+
+响应示例（单个模型）:
+```json
+{
+  "success": true,
+  "message": "Model status retrieved",
+  "data": {
+    "running": true,
+    "model_name": "llama-7b",
+    "model_path": "/path/to/model.gguf",
+    "port": 8080,
+    "start_time": "2023-01-01T00:00:00Z",
+    "process_id": 12345,
+    "vram_usage": 4096
+  }
+}
+```
+
+响应示例（多个模型）:
+```json
+{
+  "success": true,
+  "message": "Model status retrieved",
+  "data": [
+    {
+      "running": true,
+      "model_name": "llama-7b",
+      "model_path": "/path/to/model.gguf",
+      "port": 8080,
+      "start_time": "2023-01-01T00:00:00Z",
+      "process_id": 12345,
+      "vram_usage": 4096
+    },
+    {
+      "running": true,
+      "model_name": "llama-13b",
+      "model_path": "/path/to/model2.gguf",
+      "port": 8081,
+      "start_time": "2023-01-01T00:00:00Z",
+      "process_id": 12346,
+      "vram_usage": 8192
+    }
+  ]
+}
 ```
 
 ### 基准测试
