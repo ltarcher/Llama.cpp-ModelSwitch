@@ -87,7 +87,7 @@ func main() {
 		cancel()
 
 		// 停止模型服务
-		if _, err := h.ModelService.StopModel(); err != nil {
+		if _, err := h.ModelService.StopAllModel(); err != nil {
 			log.Printf("Error stopping model service: %v\n", err)
 		}
 

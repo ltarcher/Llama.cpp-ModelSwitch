@@ -387,6 +387,38 @@ func (s *ModelService) StopModel(model_name string) (*model.ModelStatus, error) 
 	return modelStatus, nil
 }
 
+// StopAllModel 停止所有运行中的模型
+func (s *ModelService) StopAllModel() ([]*model.ModelStatus, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// 获取所有运行中的模型
+	runningModels := s.processManager.GetRunningModels()
+	if len(runningModels) == 0 {
+		return nil, nil
+	}
+
+	// 停止每个模型并收集结果
+	stoppedModels := make([]*model.ModelStatus, 0, len(runningModels))
+	var lastError error
+
+	for _, m := range runningModels {
+		_, err := s.processManager.StopModel(m.ModelName)
+		if err != nil {
+			log.Printf("Failed to stop model '%s': %v", m.ModelName, err)
+			lastError = err
+			continue
+		}
+		stoppedModels = append(stoppedModels, m)
+	}
+
+	if lastError != nil {
+		return stoppedModels, fmt.Errorf("some models failed to stop, last error: %v", lastError)
+	}
+
+	return stoppedModels, nil
+}
+
 // GetModelStatus 获取模型状态
 func (s *ModelService) GetModelStatus(name string) []*model.ModelStatus {
 	s.mu.Lock()
