@@ -351,17 +351,33 @@ func (s *ModelService) StopModelByName(name string) (*model.ModelStatus, error) 
 	return modelStatus, nil
 }
 
-// GetStatus 获取当前模型服务状态
-func (s *ModelService) GetStatus() *model.ModelStatus {
+// GetModelStatus 获取模型状态
+func (s *ModelService) GetModelStatus(name string) []*model.ModelStatus {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	// 确保进程状态与记录的状态一致
+	// 获取所有运行中的模型
+	allModels := s.processManager.GetRunningModels()
+
+	// 确保当前模型状态与进程状态一致
 	if s.currentStatus.Running && !s.processManager.IsRunning() {
 		s.currentStatus.Running = false
 	}
 
-	return s.currentStatus
+	// 如果有指定名称，过滤匹配的模型
+	if name != "" {
+		var result []*model.ModelStatus
+		for _, m := range allModels {
+			if m.ModelName == name {
+				result = append(result, m)
+				break
+			}
+		}
+		return result
+	}
+
+	// 返回所有模型状态
+	return allModels
 }
 
 // ValidateModelConfig 验证模型配置

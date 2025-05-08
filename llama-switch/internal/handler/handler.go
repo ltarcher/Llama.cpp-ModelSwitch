@@ -107,11 +107,36 @@ func (h *Handler) GetModelStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	status := h.ModelService.GetStatus()
+	// 解析查询参数
+	modelName := r.URL.Query().Get("model_name")
+
+	// 获取模型状态
+	statuses := h.ModelService.GetModelStatus(modelName)
+	if len(statuses) == 0 {
+		if modelName != "" {
+			h.respondWithError(w, http.StatusNotFound,
+				fmt.Sprintf("Model '%s' not found", modelName))
+			return
+		}
+		h.respondWithJSON(w, http.StatusOK, model.NewAPIResponse(
+			true,
+			"No models running",
+			nil,
+			"",
+		))
+		return
+	}
+
+	// 返回单个模型或多个模型状态
+	var data interface{} = statuses[0]
+	if modelName == "" && len(statuses) > 1 {
+		data = statuses
+	}
+
 	h.respondWithJSON(w, http.StatusOK, model.NewAPIResponse(
 		true,
 		"Model status retrieved successfully",
-		status,
+		data,
 		"",
 	))
 }
