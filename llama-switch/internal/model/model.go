@@ -122,6 +122,11 @@ type ModelStatus struct {
 	VRAMUsage int    `json:"vram_usage"` // 显存使用量(MB)
 }
 
+// ModelStopRequest 停止模型请求
+type ModelStopRequest struct {
+	ModelName string `json:"model_name"` // 模型名称标识
+}
+
 // BenchmarkStatus 基准测试状态
 type BenchmarkStatus struct {
 	TaskID     string              `json:"task_id"`               // 任务ID

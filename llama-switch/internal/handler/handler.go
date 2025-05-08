@@ -109,9 +109,13 @@ func (h *Handler) StopModel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 解析请求参数
-	query := r.URL.Query()
-	modelName := query.Get("model_name")
+	// 解析请求body
+	var req model.ModelStopRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.respondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	modelName := req.ModelName
 
 	if modelName == "" {
 		h.respondWithError(w, http.StatusBadRequest, "Model name is required")
