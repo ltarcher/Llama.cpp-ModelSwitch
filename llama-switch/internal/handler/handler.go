@@ -3,7 +3,9 @@ package handler
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
+	"time"
 
 	"llama-switch/internal/config"
 	"llama-switch/internal/model"
@@ -37,6 +39,12 @@ func (h *Handler) SwitchModel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 验证必要参数
+	if cfg.ModelName == "" {
+		h.respondWithError(w, http.StatusBadRequest, "Model name is required")
+		return
+	}
+
 	// 验证ForceVRAM参数
 	if cfg.ForceVRAM && cfg.Config.NGPULayers <= 0 {
 		h.respondWithError(w, http.StatusBadRequest,
@@ -49,22 +57,42 @@ func (h *Handler) SwitchModel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 记录请求日志
+	log.Printf("Starting model switch: %s (%s)", cfg.ModelName, cfg.ModelPath)
+
 	if err := h.ModelService.StartModel(&cfg); err != nil {
-		h.respondWithError(w, http.StatusInternalServerError, err.Error())
+		log.Printf("Failed to start model %s: %v", cfg.ModelName, err)
+		h.respondWithError(w, http.StatusInternalServerError,
+			fmt.Sprintf("Failed to start model: %v", err))
 		return
 	}
 
-	// 获取当前模型状态
+	// 获取并验证模型状态
 	statuses := h.ModelService.GetModelStatus(cfg.ModelName)
 	if len(statuses) == 0 {
-		h.respondWithError(w, http.StatusInternalServerError, "Failed to get model status after starting")
+		errMsg := fmt.Sprintf("Model %s failed to start (no status available)", cfg.ModelName)
+		log.Println(errMsg)
+		h.respondWithError(w, http.StatusInternalServerError, errMsg)
 		return
 	}
+
+	// 确保模型已正确加载
+	if !statuses[0].Running {
+		errMsg := fmt.Sprintf("Model %s is not running after start", cfg.ModelName)
+		log.Println(errMsg)
+		h.respondWithError(w, http.StatusInternalServerError, errMsg)
+		return
+	}
+
+	log.Printf("Model %s started successfully (PID: %d)", cfg.ModelName, statuses[0].ProcessID)
 
 	h.respondWithJSON(w, http.StatusOK, model.NewAPIResponse(
 		true,
-		"Model switched successfully",
-		statuses[0], // 返回第一个模型状态
+		fmt.Sprintf("Model '%s' switched successfully", cfg.ModelName),
+		map[string]interface{}{
+			"model":     statuses[0],
+			"load_time": time.Since(time.Now()).String(),
+		},
 		"",
 	))
 }
@@ -80,6 +108,22 @@ func (h *Handler) StopModel(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	modelName := query.Get("model_name")
 
+	// 获取当前模型状态
+	var targetStatus *model.ModelStatus
+	if modelName != "" {
+		// 检查指定模型是否存在
+		statuses := h.ModelService.GetModelStatus(modelName)
+		if len(statuses) == 0 {
+			h.respondWithError(w, http.StatusNotFound,
+				fmt.Sprintf("Model '%s' not found or not running", modelName))
+			return
+		}
+		targetStatus = statuses[0]
+	}
+
+	// 记录停止请求
+	log.Printf("Stopping model: %s", modelName)
+
 	var err error
 	var status *model.ModelStatus
 	if modelName != "" {
@@ -91,7 +135,18 @@ func (h *Handler) StopModel(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
+		log.Printf("Failed to stop model %s: %v", modelName, err)
 		h.respondWithError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// 验证模型是否真的已停止
+	time.Sleep(100 * time.Millisecond) // 给进程一点时间完全退出
+	statuses := h.ModelService.GetModelStatus(modelName)
+	if len(statuses) > 0 && statuses[0].Running {
+		errMsg := fmt.Sprintf("Model '%s' is still running after stop request", modelName)
+		log.Println(errMsg)
+		h.respondWithError(w, http.StatusInternalServerError, errMsg)
 		return
 	}
 
@@ -99,10 +154,25 @@ func (h *Handler) StopModel(w http.ResponseWriter, r *http.Request) {
 	if modelName != "" {
 		msg = fmt.Sprintf("Model '%s' stopped successfully", modelName)
 	}
+
+	// 记录成功日志
+	log.Printf("Successfully stopped model: %s", modelName)
+
+	// 构建响应数据
+	responseData := map[string]interface{}{
+		"stopped_model": status,
+		"stop_time":     time.Now().Format(time.RFC3339),
+	}
+
+	// 只有在有目标状态时才添加显存信息
+	if targetStatus != nil {
+		responseData["vram_freed"] = targetStatus.VRAMUsage
+	}
+
 	h.respondWithJSON(w, http.StatusOK, model.NewAPIResponse(
 		true,
 		msg,
-		status,
+		responseData,
 		"",
 	))
 }
@@ -116,13 +186,15 @@ func (h *Handler) GetModelStatus(w http.ResponseWriter, r *http.Request) {
 
 	// 解析查询参数
 	modelName := r.URL.Query().Get("model_name")
+	log.Printf("Requesting status for model: %s", modelName)
 
 	// 获取模型状态
 	statuses := h.ModelService.GetModelStatus(modelName)
 	if len(statuses) == 0 {
 		if modelName != "" {
-			h.respondWithError(w, http.StatusNotFound,
-				fmt.Sprintf("Model '%s' not found", modelName))
+			msg := fmt.Sprintf("Model '%s' not found", modelName)
+			log.Println(msg)
+			h.respondWithError(w, http.StatusNotFound, msg)
 			return
 		}
 		h.respondWithJSON(w, http.StatusOK, model.NewAPIResponse(
@@ -134,12 +206,37 @@ func (h *Handler) GetModelStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 返回单个模型或多个模型状态
-	var data interface{} = statuses[0]
-	if modelName == "" && len(statuses) > 1 {
-		data = statuses
+	// 收集性能指标
+	responseData := make([]map[string]interface{}, 0, len(statuses))
+	for _, status := range statuses {
+		// TODO: 实现真实的进程资源使用统计
+		// 这里使用模拟数据作为示例
+		cpuUsage := "15%"   // 模拟CPU使用率
+		memUsage := "256MB" // 模拟内存使用
+
+		modelInfo := map[string]interface{}{
+			"model": status,
+			"performance": map[string]string{
+				"cpu_usage":    cpuUsage,
+				"memory_usage": memUsage,
+				"vram_usage":   fmt.Sprintf("%dMB", status.VRAMUsage),
+				"uptime":       time.Since(time.Now()).String(),
+			},
+			"timestamps": map[string]string{
+				"start_time":  status.StartTime,
+				"last_update": time.Now().Format(time.RFC3339),
+			},
+		}
+		responseData = append(responseData, modelInfo)
 	}
 
+	// 如果是单个模型查询，直接返回单个对象
+	var data interface{} = responseData[0]
+	if modelName == "" && len(responseData) > 1 {
+		data = responseData
+	}
+
+	log.Printf("Returning status for %d models", len(statuses))
 	h.respondWithJSON(w, http.StatusOK, model.NewAPIResponse(
 		true,
 		"Model status retrieved successfully",

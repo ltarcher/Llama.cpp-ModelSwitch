@@ -38,13 +38,6 @@ func (pm *ProcessManager) StartProcess(command string, args []string) error {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 
-	// 如果已有进程在运行，先停止它
-	if pm.process != nil {
-		if err := pm.StopProcess(); err != nil {
-			return fmt.Errorf("failed to stop existing process: %v", err)
-		}
-	}
-
 	// 创建新的命令
 	cmd := exec.Command(command, args...)
 
@@ -67,12 +60,26 @@ func (pm *ProcessManager) StartProcess(command string, args []string) error {
 
 	// 在后台等待进程结束
 	go func() {
-		cmd.Wait()
+		// 捕获进程退出状态
+		err := cmd.Wait()
+
 		pm.mu.Lock()
-		pm.process = nil
-		pm.cmd = nil
+		// 清理进程状态
+		if pm.process != nil && pm.process.Pid == cmd.Process.Pid {
+			pm.process = nil
+			pm.cmd = nil
+		}
+
+		// 清理模型状态
+		if model, exists := pm.models[cmd.Process.Pid]; exists {
+			delete(pm.models, cmd.Process.Pid)
+			log.Printf("Model '%s' (PID: %d) exited: %v",
+				model.ModelName, cmd.Process.Pid, err)
+		} else {
+			log.Printf("Process exited (PID: %d): %v",
+				cmd.Process.Pid, err)
+		}
 		pm.mu.Unlock()
-		log.Printf("Process exited: %s", command)
 	}()
 
 	return nil
@@ -160,10 +167,38 @@ func (pm *ProcessManager) GetRunningModels() []*model.ModelStatus {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 	pm.init()
+
 	models := make([]*model.ModelStatus, 0, len(pm.models))
-	for _, m := range pm.models {
+	toRemove := make([]int, 0)
+
+	for pid, m := range pm.models {
+		// 验证进程是否还在运行
+		process, err := os.FindProcess(pid)
+		if err != nil {
+			log.Printf("Warning: Failed to find process %d, marking for removal: %v", pid, err)
+			toRemove = append(toRemove, pid)
+			continue
+		}
+
+		// 尝试发送空信号来检查进程是否存活
+		if err := process.Signal(syscall.Signal(0)); err != nil {
+			log.Printf("Warning: Process %d (model: %s) is not responding, marking for removal: %v",
+				pid, m.ModelName, err)
+			toRemove = append(toRemove, pid)
+			continue
+		}
+
+		// 进程正在运行，添加到结果列表
 		models = append(models, m)
 	}
+
+	// 清理已停止的进程状态
+	for _, pid := range toRemove {
+		log.Printf("Cleaning up stopped model (PID: %d, Name: %s)",
+			pid, pm.models[pid].ModelName)
+		delete(pm.models, pid)
+	}
+
 	return models
 }
 

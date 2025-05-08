@@ -35,34 +35,56 @@ func NewModelService(cfg *config.Config) *ModelService {
 
 // freeVRAM 释放足够显存(优先释放大显存模型)
 func (s *ModelService) freeVRAM(required int) error {
+	// 获取按显存使用排序的模型列表
 	models := s.processManager.GetModelsByVRAMUsage()
+	if len(models) == 0 {
+		return fmt.Errorf("no running models to free VRAM from")
+	}
+
 	freed := 0
+	stoppedModels := make([]string, 0)
 
 	for _, m := range models {
-		if freed >= required {
-			break
+		// 不要停止当前正在切换的模型
+		if s.currentStatus != nil && m.ProcessID == s.currentStatus.ProcessID {
+			continue
 		}
 
-		// 停止模型进程
-		if err := s.processManager.StopProcess(); err != nil {
-			return fmt.Errorf("failed to stop model (PID: %d): %v", m.ProcessID, err)
+		// 尝试停止模型进程
+		if err := s.processManager.stopProcessByPID(m.ProcessID); err != nil {
+			log.Printf("Warning: failed to stop model %s (PID: %d): %v",
+				m.ModelName, m.ProcessID, err)
+			continue
 		}
 
 		// 更新已释放显存
 		freed += m.VRAMUsage
 		s.processManager.RemoveModel(m.ProcessID)
+		stoppedModels = append(stoppedModels, m.ModelName)
+
+		if freed >= required {
+			log.Printf("Freed %dMB VRAM by stopping models: %s",
+				freed, strings.Join(stoppedModels, ", "))
+			return nil
+		}
 	}
 
-	if freed < required {
-		return fmt.Errorf("failed to free enough VRAM (required: %dMB, freed: %dMB)",
-			required, freed)
-	}
-
-	return nil
+	return fmt.Errorf("could only free %dMB of %dMB required VRAM after stopping models: %s",
+		freed, required, strings.Join(stoppedModels, ", "))
 }
 
 // StartModel 启动模型服务
 func (s *ModelService) StartModel(cfg *model.ModelConfig) error {
+	if cfg.ModelName == "" {
+		return fmt.Errorf("model name is required")
+	}
+
+	// 检查是否存在同名模型
+	existingModels := s.GetModelStatus(cfg.ModelName)
+	if len(existingModels) > 0 {
+		return fmt.Errorf("model with name '%s' is already running", cfg.ModelName)
+	}
+
 	// 显存检查
 	if cfg.ForceVRAM {
 		required := s.estimateVRAMUsage(cfg)
@@ -353,15 +375,32 @@ func (s *ModelService) StopModelByName(name string) (*model.ModelStatus, error) 
 
 // GetModelStatus 获取模型状态
 func (s *ModelService) GetModelStatus(name string) []*model.ModelStatus {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.mu.Lock() // 使用写锁以确保状态更新的原子性
+	defer s.mu.Unlock()
 
 	// 获取所有运行中的模型
 	allModels := s.processManager.GetRunningModels()
 
 	// 确保当前模型状态与进程状态一致
-	if s.currentStatus.Running && !s.processManager.IsRunning() {
-		s.currentStatus.Running = false
+	if s.currentStatus != nil {
+		if s.currentStatus.Running && !s.processManager.IsRunning() {
+			s.currentStatus.Running = false
+			// 从进程管理器中移除已停止的模型
+			s.processManager.RemoveModel(s.currentStatus.ProcessID)
+		}
+		// 确保当前模型包含在结果中
+		if s.currentStatus.Running {
+			found := false
+			for _, m := range allModels {
+				if m.ProcessID == s.currentStatus.ProcessID {
+					found = true
+					break
+				}
+			}
+			if !found {
+				allModels = append(allModels, s.currentStatus)
+			}
+		}
 	}
 
 	// 如果有指定名称，过滤匹配的模型
@@ -370,13 +409,11 @@ func (s *ModelService) GetModelStatus(name string) []*model.ModelStatus {
 		for _, m := range allModels {
 			if m.ModelName == name {
 				result = append(result, m)
-				break
 			}
 		}
 		return result
 	}
 
-	// 返回所有模型状态
 	return allModels
 }
 
