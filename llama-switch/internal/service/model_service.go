@@ -82,21 +82,35 @@ func (s *ModelService) StartModel(cfg *model.ModelConfig) error {
 	// 检查是否存在同名模型
 	existingModels := s.GetModelStatus(cfg.ModelName)
 	if len(existingModels) > 0 {
-		return fmt.Errorf("model with name '%s' is already running", cfg.ModelName)
+		// 如果模型已存在且正在运行，直接返回
+		if existingModels[0].Running {
+			return fmt.Errorf("model with name '%s' is already running", cfg.ModelName)
+		}
+		// 如果模型存在但已停止，从管理器中移除
+		s.processManager.RemoveModel(existingModels[0].ProcessID)
 	}
 
-	// 显存检查
-	if cfg.ForceVRAM {
-		required := s.estimateVRAMUsage(cfg)
+	// 估算所需显存
+	requiredVRAM := s.estimateVRAMUsage(cfg)
+
+	// 检查显存
+	if cfg.ForceVRAM || cfg.Config.NGPULayers > 0 {
 		available, err := s.getAvailableVRAM()
 		if err != nil {
 			return fmt.Errorf("failed to check VRAM: %v", err)
 		}
 
-		if available < required {
-			if err := s.freeVRAM(required - available); err != nil {
-				return fmt.Errorf("insufficient VRAM (required: %dMB, available: %dMB): %v",
-					required, available, err)
+		if available < requiredVRAM {
+			// 如果强制使用显存，尝试释放
+			if cfg.ForceVRAM {
+				if err := s.freeVRAM(requiredVRAM - available); err != nil {
+					return fmt.Errorf("insufficient VRAM (required: %dMB, available: %dMB): %v",
+						requiredVRAM, available, err)
+				}
+			} else {
+				// 如果不强制使用显存，返回错误
+				return fmt.Errorf("insufficient VRAM (required: %dMB, available: %dMB). Use force_vram=true to force start",
+					requiredVRAM, available)
 			}
 		}
 	}
