@@ -291,7 +291,7 @@ func (s *ModelService) StartModel(cfg *model.ModelConfig) error {
 		return fmt.Errorf("failed to start model service: %v", err)
 	}
 
-	// 更新状态
+	// 更新状态并添加到进程管理器
 	status := &model.ModelStatus{
 		Running:   true,
 		ModelName: cfg.ModelName,
@@ -301,9 +301,6 @@ func (s *ModelService) StartModel(cfg *model.ModelConfig) error {
 		ProcessID: s.processManager.GetPID(),
 		VRAMUsage: s.estimateVRAMUsage(cfg),
 	}
-	s.currentStatus = status
-
-	// 添加到进程管理器
 	s.processManager.AddModel(status.ProcessID, status)
 
 	return nil
@@ -401,30 +398,8 @@ func (s *ModelService) GetModelStatus(name string) []*model.ModelStatus {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// 统一从进程管理器获取所有模型状态
+	// 从进程管理器获取模型状态
 	allModels := s.processManager.GetRunningModels()
-
-	// 同步当前模型状态
-	if s.currentStatus != nil {
-		// 检查当前模型是否在管理器中
-		found := false
-		for _, m := range allModels {
-			if m.ProcessID == s.currentStatus.ProcessID {
-				found = true
-				break
-			}
-		}
-
-		// 如果当前模型正在运行但不在管理器中，添加到结果
-		if !found && s.currentStatus.Running {
-			allModels = append(allModels, s.currentStatus)
-		}
-
-		// 如果当前模型已停止，从管理器中移除
-		if !s.currentStatus.Running {
-			s.processManager.RemoveModel(s.currentStatus.ProcessID)
-		}
-	}
 
 	// 如果有指定名称，返回匹配的模型
 	if name != "" {
