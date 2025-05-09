@@ -45,12 +45,26 @@ if %ERRORLEVEL% NEQ 0 (
     echo 警告：设置环境变量失败，但不会中断安装
 )
 
+:: 配置ollama开机自启动
+echo 正在配置ollama开机自启动...
+reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v Ollama /t REG_SZ /d "C:\ollama\ollama.exe serve" /f
+if %ERRORLEVEL% NEQ 0 (
+    echo 警告：配置ollama开机自启动失败，但不会中断安装
+)
+
 :: 安装docker desktop
 echo 正在安装Docker Desktop...
-start /wait ".\tools\Docker Desktop Installer.exe" install -quiet --accept-license --always-run-service --backend=wsl-2
+start /wait ".\tools\Docker Desktop Installer.exe" install -quiet --accept-license --always-run-service --backend=wsl-2 --installation-dir="C:\Program Files\Docker Desktop"
 if %ERRORLEVEL% NEQ 0 (
     echo 错误：Docker Desktop安装失败
     goto :ERROR
+)
+
+:: 配置Docker Desktop开机自启动
+echo 正在配置Docker Desktop开机自启动...
+reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v DockerDesktop /t REG_SZ /d "\"C:\Program Files\Docker Desktop\Docker Desktop.exe\"" /f
+if %ERRORLEVEL% NEQ 0 (
+    echo 警告：配置Docker Desktop开机自启动失败，但不会中断安装
 )
 
 :: 创建Qingling用户账号
