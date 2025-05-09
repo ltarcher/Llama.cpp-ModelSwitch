@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"llama-switch/internal/config"
@@ -28,6 +29,11 @@ func main() {
 
 	// 初始化模型服务 (启用自动恢复)
 	modelService := service.NewModelService(cfg, true)
+
+	// 输出持久化配置路径
+	configDir := filepath.Join(filepath.Dir(cfg.ModelsDir), "config")
+	configPath := filepath.Join(configDir, "model_persistent.json")
+	log.Printf("Persistent config location: %s", configPath)
 
 	// 启动时恢复之前运行的模型
 	if err := modelService.RestoreModels(); err != nil {

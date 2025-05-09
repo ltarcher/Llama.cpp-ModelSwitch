@@ -50,8 +50,14 @@ func (pm *PersistentManager) LoadConfig() (*PersistentModelConfig, error) {
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
 
+	// 获取程序运行目录
+	exePath, err := os.Executable()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get executable path: %v", err)
+	}
+
 	// 确保配置目录存在
-	configDir := filepath.Join(filepath.Dir(pm.config.ModelsDir), "config")
+	configDir := filepath.Join(filepath.Dir(exePath), "config")
 	if err := os.MkdirAll(configDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create config directory: %v", err)
 	}
@@ -108,8 +114,14 @@ func (pm *PersistentManager) SaveConfig(config *PersistentModelConfig) error {
 		return fmt.Errorf("failed to serialize config: %v", err)
 	}
 
+	// 获取程序运行目录
+	exePath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("failed to get executable path: %v", err)
+	}
+
 	// 确保配置目录存在并设置配置路径
-	configDir := filepath.Join(filepath.Dir(pm.config.ModelsDir), "config")
+	configDir := filepath.Join(filepath.Dir(exePath), "config")
 	if err := os.MkdirAll(configDir, 0755); err != nil {
 		return fmt.Errorf("failed to create config directory: %v", err)
 	}
