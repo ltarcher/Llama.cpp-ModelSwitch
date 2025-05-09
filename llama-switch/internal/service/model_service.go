@@ -117,11 +117,18 @@ func (s *ModelService) freeVRAM(required int) error {
 		return fmt.Errorf("no running models to free VRAM from")
 	}
 
-	freed := 0
+	// 获取初始可用显存
+	initialFree, err := s.getTotalAvailableVRAM()
+	if err != nil {
+		return fmt.Errorf("failed to get initial VRAM: %v", err)
+	}
+
 	stoppedModels := make([]string, 0)
+	currentFree := initialFree
 
 	for _, m := range models {
-		// 可以停止任何模型来释放VRAM
+		// 获取停止前的可用显存
+		beforeStop := currentFree
 
 		// 尝试停止模型进程
 		if err := s.processManager.stopProcessByPID(m.ProcessID); err != nil {
@@ -130,20 +137,38 @@ func (s *ModelService) freeVRAM(required int) error {
 			continue
 		}
 
-		// 更新已释放显存
-		freed += m.VRAMUsage
+		// 等待显存释放（通常需要一点时间）
+		time.Sleep(1 * time.Second)
+
+		// 获取停止后的可用显存
+		afterStop, err := s.getTotalAvailableVRAM()
+		if err != nil {
+			log.Printf("Warning: failed to get VRAM after stopping model %s: %v",
+				m.ModelName, err)
+			continue
+		}
+
+		// 计算实际释放的显存
+		freedByThisModel := afterStop - beforeStop
+		currentFree = afterStop
+
 		s.processManager.RemoveModel(m.ProcessID)
 		stoppedModels = append(stoppedModels, m.ModelName)
 
-		if freed >= required {
-			log.Printf("Freed %dMB VRAM by stopping models: %s",
-				freed, strings.Join(stoppedModels, ", "))
+		log.Printf("Stopped model %s, freed %dMB VRAM", m.ModelName, freedByThisModel)
+
+		// 检查是否已释放足够显存
+		totalFreed := currentFree - initialFree
+		if totalFreed >= required {
+			log.Printf("Successfully freed %dMB VRAM by stopping models: %s",
+				totalFreed, strings.Join(stoppedModels, ", "))
 			return nil
 		}
 	}
 
+	totalFreed := currentFree - initialFree
 	return fmt.Errorf("could only free %dMB of %dMB required VRAM after stopping models: %s",
-		freed, required, strings.Join(stoppedModels, ", "))
+		totalFreed, required, strings.Join(stoppedModels, ", "))
 }
 
 // StartModel 启动模型服务并返回状态
@@ -193,21 +218,17 @@ func (s *ModelService) StartModel(cfg *model.ModelConfig) (status *model.ModelSt
 
 	// 检查显存
 	if cfg.ForceVRAM || cfg.Config.NGPULayers > 0 {
-		// 计算所有运行中模型使用的VRAM总和
-		var usedVRAM int
-		for _, m := range s.processManager.GetRunningModels() {
-			usedVRAM += m.VRAMUsage
-		}
-
-		available, err := s.getAvailableVRAM()
+		available, err := s.getTotalAvailableVRAM()
 		if err != nil {
 			return nil, fmt.Errorf("failed to check VRAM: %v", err)
 		}
+		log.Printf("Available VRAM: %dMB", available)
 
-		totalAvailable := available - usedVRAM
+		totalAvailable := available
 		if totalAvailable < requiredVRAM {
 			// 如果强制使用显存，尝试释放
 			if cfg.ForceVRAM {
+				log.Printf("Insufficient VRAM (required: %dMB based on model size %dMB, available: %dMB), freeing VRAM", requiredVRAM, modelSizeMB, totalAvailable)
 				if err := s.freeVRAM(requiredVRAM - totalAvailable); err != nil {
 					return nil, fmt.Errorf("insufficient VRAM (required: %dMB based on model size %dMB, available: %dMB): %v",
 						requiredVRAM, modelSizeMB, totalAvailable, err)
@@ -430,26 +451,44 @@ func (s *ModelService) StartModel(cfg *model.ModelConfig) (status *model.ModelSt
 	return status, nil
 }
 
-// getAvailableVRAM 获取当前可用显存(MB)
-func (s *ModelService) getAvailableVRAM() (int, error) {
+// getAvailableVRAM 获取当前可用显存(MB)，返回每个GPU的可用显存
+func (s *ModelService) getAvailableVRAM() ([]int, error) {
 	cmd := exec.Command("nvidia-smi", "--query-gpu=memory.free", "--format=csv,noheader,nounits")
 	output, err := cmd.Output()
 	if err != nil {
-		return 0, fmt.Errorf("failed to query GPU memory: %v", err)
+		return nil, fmt.Errorf("failed to query GPU memory: %v", err)
 	}
 
-	// 解析输出，取第一个GPU的可用显存
+	// 解析输出，获取所有GPU的可用显存
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
 	if len(lines) == 0 {
-		return 0, fmt.Errorf("no GPU memory information available")
+		return nil, fmt.Errorf("no GPU memory information available")
 	}
 
-	freeMB, err := strconv.Atoi(strings.TrimSpace(lines[0]))
+	var freeMemory []int
+	for _, line := range lines {
+		freeMB, err := strconv.Atoi(strings.TrimSpace(line))
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse GPU memory: %v", err)
+		}
+		freeMemory = append(freeMemory, freeMB)
+	}
+
+	return freeMemory, nil
+}
+
+// getTotalAvailableVRAM 获取所有GPU的总可用显存(MB)
+func (s *ModelService) getTotalAvailableVRAM() (int, error) {
+	freeMemory, err := s.getAvailableVRAM()
 	if err != nil {
-		return 0, fmt.Errorf("failed to parse GPU memory: %v", err)
+		return 0, err
 	}
 
-	return freeMB, nil
+	total := 0
+	for _, mem := range freeMemory {
+		total += mem
+	}
+	return total, nil
 }
 
 // estimateVRAMUsage 估算模型所需显存(MB)
