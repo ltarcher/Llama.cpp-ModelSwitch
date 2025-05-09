@@ -58,7 +58,7 @@ if %ERRORLEVEL% NEQ 0 (
 
 :: 安装docker desktop
 echo 正在安装Docker Desktop...
-start /wait ".\tools\Docker Desktop Installer.exe" install -quiet --accept-license --always-run-service --backend=wsl-2 --installation-dir="C:\Program Files\Docker Desktop"
+start /wait "" ".\tools\Docker Desktop Installer.exe" install -quiet --accept-license --always-run-service --backend=wsl-2 --installation-dir="C:\Program Files\Docker Desktop"
 if %ERRORLEVEL% NEQ 0 (
     echo 错误：Docker Desktop安装失败
     goto :ERROR
