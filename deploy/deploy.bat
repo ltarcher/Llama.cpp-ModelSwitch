@@ -21,18 +21,18 @@ reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v HotSpot /t REG_S
 
 :: 安装软件
 echo 正在检查安装文件...
-if not exist ".\tools\ollama.exe" (
+if not exist ".\tools\OllamaSetup.exe" (
     echo 错误：未找到ollama安装文件
     goto :ERROR
 )
-if not exist ".\tools\DockerDesktop.exe" (
+if not exist ".\tools\Docker Desktop Installer.exe" (
     echo 错误：未找到Docker Desktop安装文件
     goto :ERROR
 )
 
 :: 安装ollama
 echo 正在安装ollama...
-start /wait .\tools\ollama.exe /VERYSILENT /DIR=C:\ollama /NORESTART
+start /wait .\tools\OllamaSetup.exe /VERYSILENT /DIR=C:\ollama /NORESTART
 if %ERRORLEVEL% NEQ 0 (
     echo 错误：ollama安装失败
     goto :ERROR
@@ -47,7 +47,7 @@ if %ERRORLEVEL% NEQ 0 (
 
 :: 安装docker desktop
 echo 正在安装Docker Desktop...
-start /wait .\tools\DockerDesktop.exe install -quiet --accept-license --always-run-service --backend=wsl-2
+start /wait ".\tools\Docker Desktop Installer.exe" install -quiet --accept-license --always-run-service --backend=wsl-2
 if %ERRORLEVEL% NEQ 0 (
     echo 错误：Docker Desktop安装失败
     goto :ERROR
