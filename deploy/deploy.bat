@@ -38,6 +38,13 @@ if %ERRORLEVEL% NEQ 0 (
     goto :ERROR
 )
 
+:: 设置OLLAMA环境变量
+echo 正在设置OLLAMA环境变量...
+setx OLLAMA_KEEP_ALIVE "-1" /M
+if %ERRORLEVEL% NEQ 0 (
+    echo 警告：设置环境变量失败，但不会中断安装
+)
+
 :: 安装docker desktop
 echo 正在安装Docker Desktop...
 start /wait .\tools\DockerDesktop.exe install -quiet
