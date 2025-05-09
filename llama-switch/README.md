@@ -12,6 +12,7 @@
 ## 配置说明
 
 默认配置：
+
 - llama-server路径：`E:/Downloads/llama-b5293-bin-win-cuda-cu12.4-x64/llama-server.exe`
 - llama-bench路径：`E:/Downloads/llama-b5293-bin-win-cuda-cu12.4-x64/llama-bench.exe`
 - 模型目录：`E:/develop/Models`
@@ -21,11 +22,43 @@
 
 ### 模型服务管理
 
-1. 切换模型
+1. 获取模型列表
+
+```http
+GET /api/v1/models
+```
+
+响应示例：
+
+```json
+{
+    "success": true,
+    "message": "Found 3 GGUF models",
+    "data": [
+        {
+            "name": "llama2-7b.gguf",
+            "path": "E:/develop/Models/llama2-7b.gguf",
+            "size": 4815463424
+        },
+        {
+            "name": "mistral-7b.gguf",
+            "path": "E:/develop/Models/mistral-7b.gguf",
+            "size": 4523347968
+        }
+    ],
+    "error": ""
+}
+```
+
+2. 切换模型
+
 ```http
 POST /api/v1/model/switch
-Content-Type: application/json
+```
 
+请求示例：
+
+```json
 {
     "model_path": "model.gguf",
     "config": {
@@ -37,67 +70,95 @@ Content-Type: application/json
 }
 ```
 
-2. 停止模型服务
+响应示例：
+
+```json
+{
+    "success": true,
+    "message": "Model switch initiated",
+    "data": null,
+    "error": ""
+}
+```
+
+3. 停止模型服务
+
 ```http
 POST /api/v1/model/stop
 ```
 
-3. 获取模型状态
+响应示例：
+
+```json
+{
+    "success": true,
+    "message": "Model stopped",
+    "data": null,
+    "error": ""
+}
+```
+
+4. 获取模型状态
+
 ```http
 GET /api/v1/model/status[?model_name=名称]
 ```
 
 参数：
+
 - `model_name` (可选): 指定要查询的模型名称
 
 响应示例（单个模型）:
+
 ```json
 {
-  "success": true,
-  "message": "Model status retrieved",
-  "data": {
-    "running": true,
-    "model_name": "llama-7b",
-    "model_path": "/path/to/model.gguf",
-    "port": 8080,
-    "start_time": "2023-01-01T00:00:00Z",
-    "process_id": 12345,
-    "vram_usage": 4096
-  }
+    "success": true,
+    "message": "Model status retrieved",
+    "data": {
+        "running": true,
+        "model_name": "llama-7b",
+        "model_path": "/path/to/model.gguf",
+        "port": 8080,
+        "start_time": "2023-01-01T00:00:00Z",
+        "process_id": 12345,
+        "vram_usage": 4096
+    }
 }
 ```
 
 响应示例（多个模型）:
+
 ```json
 {
-  "success": true,
-  "message": "Model status retrieved",
-  "data": [
-    {
-      "running": true,
-      "model_name": "llama-7b",
-      "model_path": "/path/to/model.gguf",
-      "port": 8080,
-      "start_time": "2023-01-01T00:00:00Z",
-      "process_id": 12345,
-      "vram_usage": 4096
-    },
-    {
-      "running": true,
-      "model_name": "llama-13b",
-      "model_path": "/path/to/model2.gguf",
-      "port": 8081,
-      "start_time": "2023-01-01T00:00:00Z",
-      "process_id": 12346,
-      "vram_usage": 8192
-    }
-  ]
+    "success": true,
+    "message": "Model status retrieved",
+    "data": [
+        {
+            "running": true,
+            "model_name": "llama-7b",
+            "model_path": "/path/to/model.gguf",
+            "port": 8080,
+            "start_time": "2023-01-01T00:00:00Z",
+            "process_id": 12345,
+            "vram_usage": 4096
+        },
+        {
+            "running": true,
+            "model_name": "llama-13b",
+            "model_path": "/path/to/model2.gguf",
+            "port": 8081,
+            "start_time": "2023-01-01T00:00:00Z",
+            "process_id": 12346,
+            "vram_usage": 8192
+        }
+    ]
 }
 ```
 
 ### 基准测试
 
 1. 启动基准测试
+
 ```http
 POST /api/v1/benchmark
 Content-Type: application/json
@@ -137,6 +198,7 @@ Content-Type: application/json
 ```
 
 2. 获取测试状态
+
 ```http
 GET /api/v1/benchmark/status?task_id={task_id}
 ```
@@ -150,20 +212,26 @@ GET /api/v1/benchmark/status?task_id={task_id}
 ## 快速开始
 
 ### 环境准备
+
 1. 确保已安装Go 1.20+和CUDA(如需GPU加速)
+
 2. 克隆仓库并进入项目目录：
+
 ```bash
 git clone https://github.com/your-repo/llama-switch.git
 cd llama-switch
 ```
 
 ### 配置文件设置
+
 1. 复制环境变量文件：
+
 ```bash
 cp llama-switch/.env.example llama-switch/.env
 ```
 
 2. 编辑配置文件：
+
 ```bash
 # Windows使用记事本
 notepad llama-switch/.env
@@ -173,6 +241,7 @@ nano llama-switch/.env
 ```
 
 3. 配置示例：
+
 ```env
 # 必需配置
 # llama.cpp 二进制文件路径
@@ -187,7 +256,9 @@ GPU_LAYERS=20  # GPU加速层数
 ```
 
 ### 启动服务
+
 1. 开发模式：
+
 ```bash
 # 从项目根目录启动
 cd llama-switch
@@ -198,6 +269,7 @@ CONFIG_PATH=$(pwd)/llama-switch/.env go run cmd/server/main.go
 ```
 
 2. 生产模式：
+
 ```bash
 # 编译
 go build -o llama-switch cmd/server/main.go
@@ -207,7 +279,9 @@ go build -o llama-switch cmd/server/main.go
 ```
 
 ### 故障排查
+
 - 如果提示"找不到.env文件"：
+
   ```bash
   # 检查文件是否存在
   ls -l llama-switch/.env
@@ -217,6 +291,7 @@ go build -o llama-switch cmd/server/main.go
   ```
 
 - 如果提示"权限不足"：
+
   ```bash
   # Linux/macOS
   chmod 644 llama-switch/.env
@@ -227,7 +302,9 @@ go build -o llama-switch cmd/server/main.go
 ## 配置示例
 
 ### 1. 基本CPU模式
+
 适用于基本的CPU推理场景：
+
 ```json
 {
     "model_path": "llama2-7b-chat.gguf",
@@ -242,7 +319,9 @@ go build -o llama-switch cmd/server/main.go
 ```
 
 ### 2. GPU加速模式
+
 适用于单GPU推理场景：
+
 ```json
 {
     "model_path": "llama2-7b-chat.gguf",
@@ -259,7 +338,9 @@ go build -o llama-switch cmd/server/main.go
 ```
 
 ### 3. 多GPU分布式模式
+
 适用于多GPU推理场景：
+
 ```json
 {
     "model_path": "llama2-7b-chat.gguf",
@@ -277,7 +358,9 @@ go build -o llama-switch cmd/server/main.go
 ```
 
 ### 4. 高性能服务模式
+
 适用于生产环境的高性能配置：
+
 ```json
 {
     "model_path": "llama2-7b-chat.gguf",
@@ -301,12 +384,19 @@ go build -o llama-switch cmd/server/main.go
 ## 使用示例
 
 1. 启动服务器：
+
 ```bash
 cd cmd/server
 go run main.go
 ```
 
-2. 切换模型：
+2. 获取可用模型列表：
+
+```bash
+curl http://localhost:8080/api/v1/models
+```
+
+3. 切换模型：
 ```bash
 curl -X POST http://localhost:8080/api/v1/model/switch \
     -H "Content-Type: application/json" \
@@ -321,7 +411,8 @@ curl -X POST http://localhost:8080/api/v1/model/switch \
     }'
 ```
 
-3. 运行基准测试（基本配置）：
+4. 运行基准测试（基本配置）：
+
 ```bash
 curl -X POST http://localhost:8080/api/v1/benchmark \
     -H "Content-Type: application/json" \
@@ -338,7 +429,8 @@ curl -X POST http://localhost:8080/api/v1/benchmark \
     }'
 ```
 
-4. GPU优化的基准测试：
+5. GPU优化的基准测试：
+
 ```bash
 curl -X POST http://localhost:8080/api/v1/benchmark \
     -H "Content-Type: application/json" \
@@ -358,7 +450,8 @@ curl -X POST http://localhost:8080/api/v1/benchmark \
     }'
 ```
 
-5. 获取基准测试状态：
+6. 获取基准测试状态：
+
 ```bash
 curl http://localhost:8080/api/v1/benchmark/status?task_id=<task_id>
 ```
@@ -366,7 +459,9 @@ curl http://localhost:8080/api/v1/benchmark/status?task_id=<task_id>
 ## 常见配置场景
 
 ### 1. CPU优化配置
+
 适用于CPU推理场景：
+
 ```json
 {
     "model_path": "llama2-7b-chat.gguf",
@@ -383,7 +478,9 @@ curl http://localhost:8080/api/v1/benchmark/status?task_id=<task_id>
 ```
 
 ### 2. 单GPU配置
+
 适用于单GPU推理场景：
+
 ```json
 {
     "model_path": "llama2-7b-chat.gguf",
@@ -400,7 +497,9 @@ curl http://localhost:8080/api/v1/benchmark/status?task_id=<task_id>
 ```
 
 ### 3. 多GPU配置
+
 适用于多GPU推理场景：
+
 ```json
 {
     "model_path": "llama2-7b-chat.gguf",

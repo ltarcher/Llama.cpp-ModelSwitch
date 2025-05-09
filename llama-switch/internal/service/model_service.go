@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -107,6 +108,51 @@ func (s *ModelService) RestoreModels() error {
 	}
 
 	return nil
+}
+
+// GetModelList 获取所有GGUF模型列表
+func (s *ModelService) GetModelList() ([]model.ModelInfo, error) {
+	var models []model.ModelInfo
+
+	// 读取模型目录
+	entries, err := os.ReadDir(s.config.ModelsDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read models directory: %v", err)
+	}
+
+	// 遍历目录查找.gguf文件
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		// 检查文件扩展名
+		if !strings.HasSuffix(strings.ToLower(entry.Name()), ".gguf") {
+			continue
+		}
+
+		// 获取文件信息
+		info, err := entry.Info()
+		if err != nil {
+			log.Printf("Warning: failed to get info for %s: %v", entry.Name(), err)
+			continue
+		}
+
+		// 构建模型信息
+		modelPath := filepath.Join(s.config.ModelsDir, entry.Name())
+		models = append(models, model.ModelInfo{
+			Name: entry.Name(),
+			Path: modelPath,
+			Size: info.Size(),
+		})
+	}
+
+	// 按名称排序
+	sort.Slice(models, func(i, j int) bool {
+		return models[i].Name < models[j].Name
+	})
+
+	return models, nil
 }
 
 // freeVRAM 释放足够显存(优先释放大显存模型)

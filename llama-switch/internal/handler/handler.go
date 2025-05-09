@@ -367,3 +367,30 @@ func (h *Handler) respondWithJSON(w http.ResponseWriter, code int, payload inter
 	w.WriteHeader(code)
 	w.Write(response)
 }
+
+// GetModelList 获取所有GGUF模型列表处理器
+func (h *Handler) GetModelList(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		h.respondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	// 获取模型列表
+	models, err := h.ModelService.GetModelList()
+	if err != nil {
+		log.Printf("Failed to get model list: %v", err)
+		h.respondWithError(w, http.StatusInternalServerError,
+			fmt.Sprintf("Failed to get model list: %v", err))
+		return
+	}
+
+	// 记录找到的模型数量
+	log.Printf("Found %d GGUF models in models directory", len(models))
+
+	h.respondWithJSON(w, http.StatusOK, model.NewAPIResponse(
+		true,
+		fmt.Sprintf("Found %d GGUF models", len(models)),
+		models,
+		"",
+	))
+}

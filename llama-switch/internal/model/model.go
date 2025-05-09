@@ -111,6 +111,13 @@ type BenchmarkConfig struct {
 	} `json:"config"`
 }
 
+// ModelInfo 模型基本信息
+type ModelInfo struct {
+	Name string `json:"name"` // 模型文件名
+	Path string `json:"path"` // 模型完整路径
+	Size int64  `json:"size"` // 模型文件大小(字节)
+}
+
 // ModelStatus 模型服务状态
 type ModelStatus struct {
 	Running   bool   `json:"running"`    // 是否正在运行

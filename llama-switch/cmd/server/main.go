@@ -58,6 +58,7 @@ func main() {
 	}
 
 	// 模型服务相关路由
+	mux.HandleFunc("/api/v1/models", loggingMiddleware(h.GetModelList)) // 获取模型列表
 	mux.HandleFunc("/api/v1/model/switch", loggingMiddleware(h.SwitchModel))
 	mux.HandleFunc("/api/v1/model/stop", loggingMiddleware(h.StopModel))
 	mux.HandleFunc("/api/v1/model/status", loggingMiddleware(h.GetModelStatus))
@@ -73,6 +74,7 @@ func main() {
 	})
 
 	log.Println("Registered API endpoints:")
+	log.Println("GET    /api/v1/models") // 获取模型列表
 	log.Println("POST   /api/v1/model/switch")
 	log.Println("POST   /api/v1/model/stop")
 	log.Println("GET    /api/v1/model/status")
@@ -126,6 +128,7 @@ func main() {
 		path    string
 		handler string
 	}{
+		{"/api/v1/models", "GetModelList"},
 		{"/api/v1/model/switch", "SwitchModel"},
 		{"/api/v1/model/stop", "StopModel"},
 		{"/api/v1/model/status", "GetModelStatus"},
