@@ -1,4 +1,6 @@
 @echo off
+:: 设置代码页为UTF-8
+chcp 65001
 :: 检查管理员权限
 NET SESSION >nul 2>&1
 IF %ERRORLEVEL% NEQ 0 (
