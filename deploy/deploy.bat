@@ -46,6 +46,14 @@ if %ERRORLEVEL% NEQ 0 (
     goto :ERROR
 )
 
+:: 创建Qingling用户账号
+echo 正在创建Qingling用户账号...
+net user Qingling Qingling@123 /add
+if %ERRORLEVEL% NEQ 0 (
+    echo 错误：创建用户账号失败
+    goto :ERROR
+)
+
 echo 自动部署完成！
 echo 请重启计算机以使所有配置生效。
 goto :END
