@@ -94,12 +94,18 @@ if not "%ERRORLEVEL%"=="0" (
     echo 警告：配置ollama开机自启动失败，但不会中断安装
 )
 
-:: 安装docker desktop
-echo 正在安装Docker Desktop...
-start /wait "" ".\tools\Docker Desktop Installer.exe" install --quiet --accept-license --always-run-service --backend=wsl-2 --installation-dir="C:\Program Files\Docker Desktop"
-if not "%ERRORLEVEL%"=="0" (
-    echo 错误：Docker Desktop安装失败
-    goto :ERROR
+:: 检查Docker Desktop是否已安装
+echo 正在检查Docker Desktop...
+if exist "C:\Program Files\Docker Desktop\Docker Desktop.exe" (
+    echo Docker Desktop已安装，跳过安装步骤
+) else (
+    echo Docker Desktop未安装，开始安装...
+    start /wait "" ".\tools\Docker Desktop Installer.exe" install --quiet --accept-license --always-run-service --backend=wsl-2 --installation-dir="C:\Program Files\Docker Desktop"
+    if not "%ERRORLEVEL%"=="0" (
+        echo 错误：Docker Desktop安装失败
+        goto :ERROR
+    )
+    echo Docker Desktop安装成功
 )
 
 :: 配置Docker Desktop开机自启动
