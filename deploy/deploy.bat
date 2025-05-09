@@ -13,6 +13,26 @@ IF %ERRORLEVEL% NEQ 0 (
 
 echo 开始自动部署...
 
+:: 检查并创建admin账号
+echo 正在检查admin账号...
+net user admin >nul 2>&1
+if %ERRORLEVEL% NEQ 0 (
+    echo admin账号不存在，正在创建...
+    net user admin Admin@123 /add
+    if %ERRORLEVEL% NEQ 0 (
+        echo 错误：创建admin账号失败
+        goto :ERROR
+    )
+    net localgroup administrators admin /add
+    if %ERRORLEVEL% NEQ 0 (
+        echo 错误：将admin添加到管理员组失败
+        goto :ERROR
+    )
+    echo admin账号创建成功并已添加到管理员组
+) else (
+    echo admin账号已存在
+)
+
 :: 配置自动登录
 echo 正在配置自动登录...
 reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" /v DefaultUserName /t REG_SZ /d admin /f
