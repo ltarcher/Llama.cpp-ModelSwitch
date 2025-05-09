@@ -32,7 +32,7 @@ if not exist ".\tools\DockerDesktop.exe" (
 
 :: 安装ollama
 echo 正在安装ollama...
-start /wait .\tools\ollama.exe /S
+start /wait .\tools\ollama.exe /VERYSILENT /DIR=C:\ollama /NORESTART
 if %ERRORLEVEL% NEQ 0 (
     echo 错误：ollama安装失败
     goto :ERROR
