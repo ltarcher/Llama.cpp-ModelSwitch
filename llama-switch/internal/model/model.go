@@ -118,6 +118,7 @@ type ModelStatus struct {
 	ModelPath string `json:"model_path"` // 当前运行的模型路径
 	Port      int    `json:"port"`       // 当前服务端口
 	StartTime string `json:"start_time"` // 服务启动时间
+	StopTime  string `json:"stop_time"`  // 服务停止时间
 	ProcessID int    `json:"process_id"` // 进程ID
 	VRAMUsage int    `json:"vram_usage"` // 显存使用量(MB)
 }

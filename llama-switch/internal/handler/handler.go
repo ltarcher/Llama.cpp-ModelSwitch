@@ -20,9 +20,21 @@ type Handler struct {
 
 // NewHandler 创建新的HTTP处理器
 func NewHandler(cfg *config.Config) *Handler {
+	return NewHandlerWithService(cfg,
+		service.NewModelService(cfg, true), // 默认启用自动恢复
+		service.NewBenchmarkService(cfg))
+}
+
+// NewHandlerWithService 创建带有自定义服务的HTTP处理器
+func NewHandlerWithService(cfg *config.Config, modelService *service.ModelService, benchmarkService *service.BenchmarkService) *Handler {
+	// 启动时恢复之前运行的模型
+	if err := modelService.RestoreModels(); err != nil {
+		log.Printf("Warning: Failed to restore models: %v", err)
+	}
+
 	return &Handler{
-		ModelService:     service.NewModelService(cfg),
-		BenchmarkService: service.NewBenchmarkService(cfg),
+		ModelService:     modelService,
+		BenchmarkService: benchmarkService,
 	}
 }
 

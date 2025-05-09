@@ -20,15 +20,93 @@ import (
 type ModelService struct {
 	config         *config.Config
 	processManager *ProcessManager
+	persistentMgr  *config.PersistentManager
 	mu             sync.RWMutex
+	autoRestore    bool
 }
 
 // NewModelService 创建新的模型服务管理器
-func NewModelService(cfg *config.Config) *ModelService {
+func NewModelService(cfg *config.Config, autoRestore bool) *ModelService {
 	return &ModelService{
 		config:         cfg,
 		processManager: NewProcessManager(),
+		persistentMgr:  config.NewPersistentManager(cfg),
+		autoRestore:    autoRestore,
 	}
+}
+
+// RestoreModels 从持久化配置恢复模型
+func (s *ModelService) RestoreModels() error {
+	if !s.autoRestore {
+		log.Println("Auto restore is disabled, skipping model restoration")
+		return nil
+	}
+
+	configs, err := s.persistentMgr.GetModelConfigs()
+	if err != nil {
+		return fmt.Errorf("failed to load persistent configs: %v", err)
+	}
+
+	if len(configs) == 0 {
+		log.Println("No models to restore")
+		return nil
+	}
+
+	var lastError error
+	restoredCount := 0
+
+	for modelName, item := range configs {
+		// 跳过配置不完整的模型
+		if item.ModelConfig == nil {
+			continue
+		}
+
+		// 检查模型是否已在运行
+		if item.LastStatus.Running && item.LastStatus.ProcessID > 0 {
+			// 验证进程是否实际存在
+			if s.processManager.IsProcessRunning(item.LastStatus.ProcessID) {
+				log.Printf("Model %s is already running (PID: %d), skipping restore",
+					modelName, item.LastStatus.ProcessID)
+				continue
+			} else {
+				// 进程已终止但状态未更新，修正状态
+				log.Printf("Model %s process (PID: %d) not found, updating status",
+					modelName, item.LastStatus.ProcessID)
+				item.LastStatus.Running = false
+				item.LastStatus.StopTime = time.Now().Format(time.RFC3339)
+				if err := s.persistentMgr.UpdateModelConfig(modelName, item.ModelConfig, &item.LastStatus); err != nil {
+					log.Printf("Warning: Failed to update model status: %v", err)
+				}
+				continue
+			}
+		}
+
+		// 验证模型配置
+		if err := s.ValidateModelConfig(item.ModelConfig); err != nil {
+			log.Printf("Invalid config for model %s: %v", modelName, err)
+			lastError = err
+			continue
+		}
+
+		log.Printf("Restoring model: %s", modelName)
+		_, err := s.StartModel(item.ModelConfig)
+		if err != nil {
+			log.Printf("Failed to restore model %s: %v", modelName, err)
+			lastError = err
+			continue
+		}
+		restoredCount++
+	}
+
+	if restoredCount > 0 {
+		log.Printf("Successfully restored %d models", restoredCount)
+	}
+
+	if lastError != nil {
+		return fmt.Errorf("some models failed to restore, last error: %v", lastError)
+	}
+
+	return nil
 }
 
 // freeVRAM 释放足够显存(优先释放大显存模型)
@@ -325,6 +403,15 @@ func (s *ModelService) StartModel(cfg *model.ModelConfig) (status *model.ModelSt
 	}
 	s.processManager.AddModel(pid, status)
 
+	// 保存模型配置到持久化存储
+	if status != nil {
+		if err := s.persistentMgr.UpdateModelConfig(cfg.ModelName, cfg, status); err != nil {
+			log.Printf("Warning: Failed to save model config: %v", err)
+		}
+	} else {
+		log.Printf("Warning: Cannot save model config - status is nil")
+	}
+
 	// Windows平台需要特殊处理进程检测
 	if runtime.GOOS == "windows" {
 		go func() {
@@ -332,6 +419,10 @@ func (s *ModelService) StartModel(cfg *model.ModelConfig) (status *model.ModelSt
 			if !s.processManager.IsProcessRunning(pid) {
 				log.Printf("Warning: Process %d (model: %s) failed to start", pid, cfg.ModelName)
 				s.processManager.RemoveModel(pid)
+				// 从持久化存储中移除配置
+				if err := s.persistentMgr.RemoveModelConfig(cfg.ModelName); err != nil {
+					log.Printf("Warning: Failed to remove model config: %v", err)
+				}
 			}
 		}()
 	}
@@ -384,6 +475,20 @@ func (s *ModelService) StopModel(model_name string) (*model.ModelStatus, error) 
 		return nil, fmt.Errorf("failed to stop model '%s': %v", model_name, err)
 	}
 
+	// 更新持久化配置中的状态
+	configs, err := s.persistentMgr.GetModelConfigs()
+	if err != nil {
+		log.Printf("Warning: Failed to load model configs: %v", err)
+	} else if item, exists := configs[model_name]; exists {
+		// 创建状态副本并更新
+		updatedStatus := item.LastStatus
+		updatedStatus.Running = false
+		updatedStatus.StopTime = time.Now().Format(time.RFC3339)
+		if err := s.persistentMgr.UpdateModelConfig(model_name, item.ModelConfig, &updatedStatus); err != nil {
+			log.Printf("Warning: Failed to update model config: %v", err)
+		}
+	}
+
 	return modelStatus, nil
 }
 
@@ -425,7 +530,53 @@ func (s *ModelService) GetModelStatus(name string) []*model.ModelStatus {
 	defer s.mu.Unlock()
 
 	// 从进程管理器获取所有运行中的模型
-	allModels := s.processManager.GetRunningModels()
+	runningModels := s.processManager.GetRunningModels()
+
+	// 获取持久化配置中的所有模型
+	persistentConfigs, err := s.persistentMgr.GetModelConfigs()
+	if err != nil {
+		log.Printf("Warning: Failed to load persistent configs: %v", err)
+		persistentConfigs = make(map[string]config.ModelConfigItem)
+	}
+
+	// 合并运行中和持久化的模型状态
+	var allModels []*model.ModelStatus
+
+	// 首先添加运行中的模型
+	allModels = append(allModels, runningModels...)
+
+	// 添加持久化配置中但未运行的模型
+	for modelName, item := range persistentConfigs {
+		// 检查是否已经在运行中模型中
+		found := false
+		for _, m := range runningModels {
+			if m.ModelName == modelName {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			// 添加持久化状态，确保时间格式一致
+			status := &model.ModelStatus{
+				ModelName: modelName,
+				Running:   item.LastStatus.Running,
+				ModelPath: item.ModelConfig.ModelPath,
+				Port:      item.ModelConfig.Config.Port,
+				ProcessID: item.LastStatus.ProcessID,
+				VRAMUsage: item.LastStatus.VRAMUsage,
+			}
+
+			// 处理时间字段
+			if item.LastStatus.StartTime != "" {
+				status.StartTime = item.LastStatus.StartTime
+			}
+			if item.LastStatus.StopTime != "" {
+				status.StopTime = item.LastStatus.StopTime
+			}
+			allModels = append(allModels, status)
+		}
+	}
 
 	// 如果有指定名称，返回匹配的模型
 	if name != "" {

@@ -11,6 +11,7 @@ import (
 
 	"llama-switch/internal/config"
 	"llama-switch/internal/handler"
+	"llama-switch/internal/service"
 )
 
 func main() {
@@ -25,8 +26,19 @@ func main() {
 		log.Fatalf("Invalid configuration: %v\n", err)
 	}
 
+	// 初始化模型服务 (启用自动恢复)
+	modelService := service.NewModelService(cfg, true)
+
+	// 启动时恢复之前运行的模型
+	if err := modelService.RestoreModels(); err != nil {
+		log.Printf("Warning: Failed to restore models: %v", err)
+	}
+
+	// 初始化基准测试服务
+	benchmarkService := service.NewBenchmarkService(cfg)
+
 	// 创建处理器
-	h := handler.NewHandler(cfg)
+	h := handler.NewHandlerWithService(cfg, modelService, benchmarkService)
 
 	// 设置带日志的路由
 	mux := http.NewServeMux()
