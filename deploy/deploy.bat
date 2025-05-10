@@ -76,7 +76,7 @@ if not exist ".\tools\Docker Desktop Installer.exe" (
 echo "正在安装ollama..."
 start /wait .\tools\OllamaSetup.exe /VERYSILENT /DIR=C:\ollama /NORESTART
 if not "%ERRORLEVEL%"=="0" (
-    echo "错误：ollama安装失败"
+    echo "错误：ollama安装失败：%ERRORLEVEL%"
     goto :ERROR
 )
 
@@ -100,9 +100,10 @@ if exist "C:\Program Files\Docker Desktop\Docker Desktop.exe" (
     echo "Docker Desktop已安装，跳过安装步骤"
 ) else (
     echo "Docker Desktop未安装，开始安装..."
-    start /wait "" ".\tools\Docker Desktop Installer.exe" install --quiet --accept-license --always-run-service --backend=wsl-2 --installation-dir="C:\Program Files\Docker Desktop" --wsl-default-data-root="C:\ProgramData\DockerDesktop" --allowed-org=docker --admin-settings="{'configurationFileVersion': 2, 'enhancedContainerIsolation': {'value': true, 'locked': false}}"
+    start /wait "" ".\tools\Docker Desktop Installer.exe" install --quiet --accept-license --always-run-service --backend=wsl-2 --installation-dir="C:\Program Files\Docker Desktop" --wsl-default-data-root="C:\ProgramData\DockerDesktop" 
+    :: 指定docker额外安装参数 --allowed-org=docker --admin-settings="{'configurationFileVersion': 2, 'enhancedContainerIsolation': {'value': true, 'locked': false}}"
     if not "%ERRORLEVEL%"=="0" (
-        echo "错误：Docker Desktop安装失败"
+        echo "错误：Docker Desktop安装失败：%ERRORLEVEL%"
         goto :ERROR
     )
     echo "Docker Desktop安装成功"
