@@ -448,6 +448,314 @@ func (s *ModelService) StartModel(cfg *model.ModelConfig) (status *model.ModelSt
 		args = append(args, "--ssl-cert-file", c.SSLCert)
 	}
 
+	// 新增参数 - 通用参数
+	if c.Help {
+		args = append(args, "--help")
+	}
+	if c.Version {
+		args = append(args, "--version")
+	}
+	if c.CompletionBash {
+		args = append(args, "--completion-bash")
+	}
+	if c.VerbosePrompt {
+		args = append(args, "--verbose-prompt")
+	}
+	if c.Escape {
+		args = append(args, "--escape")
+	}
+	if c.NoEscape {
+		args = append(args, "--no-escape")
+	}
+	if c.DumpKVCache {
+		args = append(args, "--dump-kv-cache")
+	}
+	if c.CheckTensors {
+		args = append(args, "--check-tensors")
+	}
+	if c.RPC != "" {
+		args = append(args, "--rpc", c.RPC)
+	}
+	if c.Parallel > 0 {
+		args = append(args, "--parallel", strconv.Itoa(c.Parallel))
+	}
+	if c.OverrideTensor != "" {
+		args = append(args, "--override-tensor", c.OverrideTensor)
+	}
+	if c.ListDevices {
+		args = append(args, "--list-devices")
+	}
+	if c.Lora != "" {
+		args = append(args, "--lora", c.Lora)
+	}
+	if c.LoraScaled != "" {
+		args = append(args, "--lora-scaled", c.LoraScaled)
+	}
+	if c.ControlVector != "" {
+		args = append(args, "--control-vector", c.ControlVector)
+	}
+	if c.ControlVectorScaled != "" {
+		args = append(args, "--control-vector-scaled", c.ControlVectorScaled)
+	}
+	if c.ControlVectorLayerRange != "" {
+		args = append(args, "--control-vector-layer-range", c.ControlVectorLayerRange)
+	}
+	if c.ModelUrl != "" {
+		args = append(args, "--model-url", c.ModelUrl)
+	}
+	if c.HfRepo != "" {
+		args = append(args, "--hf-repo", c.HfRepo)
+	}
+	if c.HfRepoDraft != "" {
+		args = append(args, "--hf-repo-draft", c.HfRepoDraft)
+	}
+	if c.HfFile != "" {
+		args = append(args, "--hf-file", c.HfFile)
+	}
+	if c.HfRepoV != "" {
+		args = append(args, "--hf-repo-v", c.HfRepoV)
+	}
+	if c.HfFileV != "" {
+		args = append(args, "--hf-file-v", c.HfFileV)
+	}
+	if c.HfToken != "" {
+		args = append(args, "--hf-token", c.HfToken)
+	}
+	if c.LogDisable {
+		args = append(args, "--log-disable")
+	}
+	if c.LogColors {
+		args = append(args, "--log-colors")
+	}
+	if c.LogVerbose {
+		args = append(args, "--log-verbose")
+	}
+	if c.LogVerbosity > 0 {
+		args = append(args, "--log-verbosity", strconv.Itoa(c.LogVerbosity))
+	}
+	if c.LogPrefix {
+		args = append(args, "--log-prefix")
+	}
+	if c.LogTimestamps {
+		args = append(args, "--log-timestamps")
+	}
+	if c.Samplers != "" {
+		args = append(args, "--samplers", c.Samplers)
+	}
+	if c.Seed > 0 {
+		args = append(args, "--seed", strconv.Itoa(c.Seed))
+	}
+	if c.SamplerSeq != "" {
+		args = append(args, "--sampler-seq", c.SamplerSeq)
+	}
+	if c.IgnoreEOS {
+		args = append(args, "--ignore-eos")
+	}
+	if c.Temp > 0 {
+		args = append(args, "--temp", fmt.Sprintf("%.2f", c.Temp))
+	}
+	if c.TopK > 0 {
+		args = append(args, "--top-k", strconv.Itoa(c.TopK))
+	}
+	if c.TopP > 0 {
+		args = append(args, "--top-p", fmt.Sprintf("%.2f", c.TopP))
+	}
+	if c.MinP > 0 {
+		args = append(args, "--min-p", fmt.Sprintf("%.2f", c.MinP))
+	}
+	if c.XtcProbability > 0 {
+		args = append(args, "--xtc-probability", fmt.Sprintf("%.2f", c.XtcProbability))
+	}
+	if c.XtcThreshold > 0 {
+		args = append(args, "--xtc-threshold", fmt.Sprintf("%.2f", c.XtcThreshold))
+	}
+	if c.Typical > 0 {
+		args = append(args, "--typical", fmt.Sprintf("%.2f", c.Typical))
+	}
+	if c.RepeatLastN > 0 {
+		args = append(args, "--repeat-last-n", strconv.Itoa(c.RepeatLastN))
+	}
+	if c.RepeatPenalty > 0 {
+		args = append(args, "--repeat-penalty", fmt.Sprintf("%.2f", c.RepeatPenalty))
+	}
+	if c.PresencePenalty > 0 {
+		args = append(args, "--presence-penalty", fmt.Sprintf("%.2f", c.PresencePenalty))
+	}
+	if c.FrequencyPenalty > 0 {
+		args = append(args, "--frequency-penalty", fmt.Sprintf("%.2f", c.FrequencyPenalty))
+	}
+	if c.DryMultiplier > 0 {
+		args = append(args, "--dry-multiplier", fmt.Sprintf("%.2f", c.DryMultiplier))
+	}
+	if c.DryBase > 0 {
+		args = append(args, "--dry-base", fmt.Sprintf("%.2f", c.DryBase))
+	}
+	if c.DryAllowedLength > 0 {
+		args = append(args, "--dry-allowed-length", strconv.Itoa(c.DryAllowedLength))
+	}
+	if c.DryPenaltyLastN > 0 {
+		args = append(args, "--dry-penalty-last-n", strconv.Itoa(c.DryPenaltyLastN))
+	}
+	if c.DrySequenceBreaker != "" {
+		args = append(args, "--dry-sequence-breaker", c.DrySequenceBreaker)
+	}
+	if c.DynatempRange > 0 {
+		args = append(args, "--dynatemp-range", fmt.Sprintf("%.2f", c.DynatempRange))
+	}
+	if c.DynatempExp > 0 {
+		args = append(args, "--dynatemp-exp", fmt.Sprintf("%.2f", c.DynatempExp))
+	}
+	if c.Mirostat > 0 {
+		args = append(args, "--mirostat", strconv.Itoa(c.Mirostat))
+	}
+	if c.MirostatLR > 0 {
+		args = append(args, "--mirostat-lr", fmt.Sprintf("%.2f", c.MirostatLR))
+	}
+	if c.MirostatEnt > 0 {
+		args = append(args, "--mirostat-ent", fmt.Sprintf("%.2f", c.MirostatEnt))
+	}
+	if c.LogitBias != "" {
+		args = append(args, "--logit-bias", c.LogitBias)
+	}
+	if c.Grammar != "" {
+		args = append(args, "--grammar", c.Grammar)
+	}
+	if c.GrammarFile != "" {
+		args = append(args, "--grammar-file", c.GrammarFile)
+	}
+	if c.JsonSchema != "" {
+		args = append(args, "--json-schema", c.JsonSchema)
+	}
+	if c.JsonSchemaFile != "" {
+		args = append(args, "--json-schema-file", c.JsonSchemaFile)
+	}
+	if c.NoContextShift {
+		args = append(args, "--no-context-shift")
+	}
+	if c.Special {
+		args = append(args, "--special")
+	}
+	if c.NoWarmup {
+		args = append(args, "--no-warmup")
+	}
+	if c.SpmInfill {
+		args = append(args, "--spm-infill")
+	}
+	if c.Pooling != "" {
+		args = append(args, "--pooling", c.Pooling)
+	}
+	if c.ContBatching {
+		args = append(args, "--cont-batching")
+	}
+	if c.NoContBatching {
+		args = append(args, "--no-cont-batching")
+	}
+	if c.Alias != "" {
+		args = append(args, "--alias", c.Alias)
+	}
+	if c.NoWebui {
+		args = append(args, "--no-webui")
+	}
+	if c.Embedding {
+		args = append(args, "--embedding")
+	}
+	if c.Reranking {
+		args = append(args, "--reranking")
+	}
+	if c.ApiKeyFile != "" {
+		args = append(args, "--api-key-file", c.ApiKeyFile)
+	}
+	if c.ThreadsHttp > 0 {
+		args = append(args, "--threads-http", strconv.Itoa(c.ThreadsHttp))
+	}
+	if c.CacheReuse > 0 {
+		args = append(args, "--cache-reuse", strconv.Itoa(c.CacheReuse))
+	}
+	if c.Metrics {
+		args = append(args, "--metrics")
+	}
+	if c.Slots {
+		args = append(args, "--slots")
+	}
+	if c.Props {
+		args = append(args, "--props")
+	}
+	if c.NoSlots {
+		args = append(args, "--no-slots")
+	}
+	if c.SlotSavePath != "" {
+		args = append(args, "--slot-save-path", c.SlotSavePath)
+	}
+	if c.Jinja {
+		args = append(args, "--jinja")
+	}
+	if c.ReasoningFormat != "" {
+		args = append(args, "--reasoning-format", c.ReasoningFormat)
+	}
+	if c.ChatTemplate != "" {
+		args = append(args, "--chat-template", c.ChatTemplate)
+	}
+	if c.ChatTemplateFile != "" {
+		args = append(args, "--chat-template-file", c.ChatTemplateFile)
+	}
+	if c.SlotPromptSimilarity > 0 {
+		args = append(args, "--slot-prompt-similarity", fmt.Sprintf("%.2f", c.SlotPromptSimilarity))
+	}
+	if c.LoraInitWithoutApply {
+		args = append(args, "--lora-init-without-apply")
+	}
+	if c.DraftMax > 0 {
+		args = append(args, "--draft-max", strconv.Itoa(c.DraftMax))
+	}
+	if c.DraftMin > 0 {
+		args = append(args, "--draft-min", strconv.Itoa(c.DraftMin))
+	}
+	if c.DraftPMin > 0 {
+		args = append(args, "--draft-p-min", fmt.Sprintf("%.2f", c.DraftPMin))
+	}
+	if c.CtxSizeDraft > 0 {
+		args = append(args, "--ctx-size-draft", strconv.Itoa(c.CtxSizeDraft))
+	}
+	if c.DeviceDraft != "" {
+		args = append(args, "--device-draft", c.DeviceDraft)
+	}
+	if c.NGPULayersDraft > 0 {
+		args = append(args, "--n-gpu-layers-draft", strconv.Itoa(c.NGPULayersDraft))
+	}
+	if c.ModelDraft != "" {
+		args = append(args, "--model-draft", c.ModelDraft)
+	}
+	if c.ModelVocoder != "" {
+		args = append(args, "--model-vocoder", c.ModelVocoder)
+	}
+	if c.TtsUseGuideTokens {
+		args = append(args, "--tts-use-guide-tokens")
+	}
+	if c.EmbdBgeSmallEnDefault {
+		args = append(args, "--embd-bge-small-en-default")
+	}
+	if c.EmbdE5SmallEnDefault {
+		args = append(args, "--embd-e5-small-en-default")
+	}
+	if c.EmbdGteSmallDefault {
+		args = append(args, "--embd-gte-small-default")
+	}
+	if c.FimQwen15bDefault {
+		args = append(args, "--fim-qwen-1-5b-default")
+	}
+	if c.FimQwen3bDefault {
+		args = append(args, "--fim-qwen-3b-default")
+	}
+	if c.FimQwen7bDefault {
+		args = append(args, "--fim-qwen-7b-default")
+	}
+	if c.FimQwen7bSpec {
+		args = append(args, "--fim-qwen-7b-spec")
+	}
+	if c.FimQwen14bSpec {
+		args = append(args, "--fim-qwen-14b-spec")
+	}
+
 	// 打印启动命令
 	cmdStr := fmt.Sprintf("%s %s", s.config.LLamaPath.Server, strings.Join(args, " "))
 	log.Printf("Starting model service with command:\n%s\n", cmdStr)
@@ -780,6 +1088,130 @@ func (s *ModelService) ValidateModelConfig(cfg *model.ModelConfig) error {
 	}
 	if c.YarnBetaFast < 0 {
 		return fmt.Errorf("invalid YaRN beta fast: %.2f", c.YarnBetaFast)
+	}
+
+	// 验证新增参数
+	if c.Parallel < 0 {
+		return fmt.Errorf("invalid parallel value: %d", c.Parallel)
+	}
+	if c.Temp < 0 {
+		return fmt.Errorf("invalid temperature value: %.2f", c.Temp)
+	}
+	if c.TopK < 0 {
+		return fmt.Errorf("invalid top-k value: %d", c.TopK)
+	}
+	if c.TopP < 0 || c.TopP > 1 {
+		return fmt.Errorf("invalid top-p value: %.2f (should be between 0 and 1)", c.TopP)
+	}
+	if c.MinP < 0 || c.MinP > 1 {
+		return fmt.Errorf("invalid min-p value: %.2f (should be between 0 and 1)", c.MinP)
+	}
+	if c.XtcProbability < 0 || c.XtcProbability > 1 {
+		return fmt.Errorf("invalid xtc probability: %.2f (should be between 0 and 1)", c.XtcProbability)
+	}
+	if c.XtcThreshold < 0 {
+		return fmt.Errorf("invalid xtc threshold: %.2f", c.XtcThreshold)
+	}
+	if c.Typical < 0 || c.Typical > 1 {
+		return fmt.Errorf("invalid typical value: %.2f (should be between 0 and 1)", c.Typical)
+	}
+	if c.RepeatLastN < 0 {
+		return fmt.Errorf("invalid repeat last n value: %d", c.RepeatLastN)
+	}
+	if c.RepeatPenalty < 0 {
+		return fmt.Errorf("invalid repeat penalty: %.2f", c.RepeatPenalty)
+	}
+	if c.PresencePenalty < 0 {
+		return fmt.Errorf("invalid presence penalty: %.2f", c.PresencePenalty)
+	}
+	if c.FrequencyPenalty < 0 {
+		return fmt.Errorf("invalid frequency penalty: %.2f", c.FrequencyPenalty)
+	}
+	if c.DryMultiplier < 0 {
+		return fmt.Errorf("invalid dry multiplier: %.2f", c.DryMultiplier)
+	}
+	if c.DryBase < 0 {
+		return fmt.Errorf("invalid dry base: %.2f", c.DryBase)
+	}
+	if c.DryAllowedLength < 0 {
+		return fmt.Errorf("invalid dry allowed length: %d", c.DryAllowedLength)
+	}
+	if c.DryPenaltyLastN < 0 {
+		return fmt.Errorf("invalid dry penalty last n: %d", c.DryPenaltyLastN)
+	}
+	if c.DynatempRange < 0 {
+		return fmt.Errorf("invalid dynatemp range: %.2f", c.DynatempRange)
+	}
+	if c.DynatempExp < 0 {
+		return fmt.Errorf("invalid dynatemp exp: %.2f", c.DynatempExp)
+	}
+	if c.Mirostat < 0 || c.Mirostat > 2 {
+		return fmt.Errorf("invalid mirostat value: %d (should be 0, 1 or 2)", c.Mirostat)
+	}
+	if c.MirostatLR < 0 {
+		return fmt.Errorf("invalid mirostat learning rate: %.2f", c.MirostatLR)
+	}
+	if c.MirostatEnt < 0 {
+		return fmt.Errorf("invalid mirostat entropy: %.2f", c.MirostatEnt)
+	}
+	if c.ThreadsHttp < 0 {
+		return fmt.Errorf("invalid http threads: %d", c.ThreadsHttp)
+	}
+	if c.CacheReuse < 0 {
+		return fmt.Errorf("invalid cache reuse value: %d", c.CacheReuse)
+	}
+	if c.SlotPromptSimilarity < 0 || c.SlotPromptSimilarity > 1 {
+		return fmt.Errorf("invalid slot prompt similarity: %.2f (should be between 0 and 1)", c.SlotPromptSimilarity)
+	}
+	if c.DraftMax < 0 {
+		return fmt.Errorf("invalid draft max: %d", c.DraftMax)
+	}
+	if c.DraftMin < 0 {
+		return fmt.Errorf("invalid draft min: %d", c.DraftMin)
+	}
+	if c.DraftPMin < 0 || c.DraftPMin > 1 {
+		return fmt.Errorf("invalid draft p min: %.2f (should be between 0 and 1)", c.DraftPMin)
+	}
+	if c.CtxSizeDraft < 0 {
+		return fmt.Errorf("invalid draft context size: %d", c.CtxSizeDraft)
+	}
+	if c.NGPULayersDraft < 0 {
+		return fmt.Errorf("invalid draft GPU layers: %d", c.NGPULayersDraft)
+	}
+
+	// 验证文件路径参数
+	if c.Lora != "" && !filepath.IsAbs(c.Lora) {
+		return fmt.Errorf("lora adapter path must be absolute: %s", c.Lora)
+	}
+	if c.LoraScaled != "" && !filepath.IsAbs(c.LoraScaled) {
+		return fmt.Errorf("scaled lora adapter path must be absolute: %s", c.LoraScaled)
+	}
+	if c.ControlVector != "" && !filepath.IsAbs(c.ControlVector) {
+		return fmt.Errorf("control vector path must be absolute: %s", c.ControlVector)
+	}
+	if c.ControlVectorScaled != "" && !filepath.IsAbs(c.ControlVectorScaled) {
+		return fmt.Errorf("scaled control vector path must be absolute: %s", c.ControlVectorScaled)
+	}
+	if c.GrammarFile != "" && !filepath.IsAbs(c.GrammarFile) {
+		return fmt.Errorf("grammar file path must be absolute: %s", c.GrammarFile)
+	}
+	if c.JsonSchemaFile != "" && !filepath.IsAbs(c.JsonSchemaFile) {
+		return fmt.Errorf("JSON schema file path must be absolute: %s", c.JsonSchemaFile)
+	}
+	if c.ApiKeyFile != "" && !filepath.IsAbs(c.ApiKeyFile) {
+		return fmt.Errorf("API key file path must be absolute: %s", c.ApiKeyFile)
+	}
+	if c.SlotSavePath != "" && !filepath.IsAbs(c.SlotSavePath) {
+		return fmt.Errorf("slot save path must be absolute: %s", c.SlotSavePath)
+	}
+	if c.ChatTemplateFile != "" && !filepath.IsAbs(c.ChatTemplateFile) {
+		return fmt.Errorf("chat template file path must be absolute: %s", c.ChatTemplateFile)
+	}
+	if c.ModelDraft != "" && !filepath.IsAbs(c.ModelDraft) {
+		return fmt.Errorf("draft model path must be absolute: %s", c.ModelDraft)
+	}
+	if c.ModelVocoder != "" && !filepath.IsAbs(c.ModelVocoder) {
+		return fmt.Errorf("vocoder model path must be absolute: %s", c.ModelVocoder)
 	}
 
 	return nil
