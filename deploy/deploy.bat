@@ -100,12 +100,13 @@ if exist "C:\Program Files\Docker Desktop\Docker Desktop.exe" (
     echo "Docker Desktop已安装，跳过安装步骤"
 ) else (
     echo "Docker Desktop未安装，开始安装..."
-    start /wait "" ".\tools\Docker Desktop Installer.exe" install --quiet --accept-license --always-run-service --backend=wsl-2 --installation-dir="C:\Program Files\Docker Desktop"
+    start /wait "" ".\tools\Docker Desktop Installer.exe" install --quiet --accept-license --always-run-service --backend=wsl-2 --installation-dir="C:\Program Files\Docker Desktop" --wsl-default-data-root="C:\ProgramData\DockerDesktop" --allowed-org=docker --admin-settings="{'configurationFileVersion': 2, 'enhancedContainerIsolation': {'value': true, 'locked': false}}"
     if not "%ERRORLEVEL%"=="0" (
         echo "错误：Docker Desktop安装失败"
         goto :ERROR
     )
     echo "Docker Desktop安装成功"
+    net localgroup docker-users admin /add
 )
 
 :: 配置Docker Desktop开机自启动
