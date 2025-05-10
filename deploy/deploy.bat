@@ -86,6 +86,10 @@ setx OLLAMA_KEEP_ALIVE "-1" /M
 if not "%ERRORLEVEL%"=="0" (
     echo "警告：设置环境变量失败，但不会中断安装"
 )
+setx OLLAMA_ORIGINS "*" /M
+if not "%ERRORLEVEL%"=="0" (
+    echo "警告：设置环境变量失败，但不会中断安装"
+)
 
 :: 配置ollama开机自启动
 echo "正在配置ollama开机自启动..."
