@@ -66,6 +66,9 @@ func (s *BenchmarkService) StartBenchmark(cfg *model.BenchmarkConfig) (string, e
 	if cfg.Config.NGen > 0 {
 		args = append(args, "--n-gen", strconv.Itoa(cfg.Config.NGen))
 	}
+	if cfg.Config.PG != "" {
+		args = append(args, "--pg", cfg.Config.PG)
+	}
 	if cfg.Config.NDepth > 0 {
 		args = append(args, "--n-depth", strconv.Itoa(cfg.Config.NDepth))
 	}
@@ -119,6 +122,9 @@ func (s *BenchmarkService) StartBenchmark(cfg *model.BenchmarkConfig) (string, e
 	}
 	if cfg.Config.TensorSplit != "" {
 		args = append(args, "--tensor-split", cfg.Config.TensorSplit)
+	}
+	if cfg.Config.OverrideTensors != "" {
+		args = append(args, "--override-tensors", cfg.Config.OverrideTensors)
 	}
 	if cfg.Config.Repetitions > 0 {
 		args = append(args, "--repetitions", strconv.Itoa(cfg.Config.Repetitions))
@@ -389,6 +395,29 @@ func (s *BenchmarkService) ValidateBenchmarkConfig(cfg *model.BenchmarkConfig) e
 	// 验证延迟
 	if c.Delay < 0 {
 		return fmt.Errorf("invalid delay value: %d (should be >= 0)", c.Delay)
+	}
+
+	// 验证PG参数格式
+	if c.PG != "" {
+		pgParts := strings.Split(c.PG, ",")
+		if len(pgParts) != 2 {
+			return fmt.Errorf("invalid pg format: %s (should be 'pp,tg')", c.PG)
+		}
+		for _, part := range pgParts {
+			if _, err := strconv.Atoi(part); err != nil {
+				return fmt.Errorf("invalid pg value: %s (should be integers)", c.PG)
+			}
+		}
+	}
+
+	// 验证OverrideTensors参数格式
+	if c.OverrideTensors != "" {
+		tensors := strings.Split(c.OverrideTensors, ";")
+		for _, tensor := range tensors {
+			if !strings.Contains(tensor, "=") {
+				return fmt.Errorf("invalid override tensors format: %s (should be '<tensor name pattern>=<buffer type>;...')", c.OverrideTensors)
+			}
+		}
 	}
 
 	// 验证输出格式

@@ -203,33 +203,50 @@ type ModelConfig struct {
 type BenchmarkConfig struct {
 	ModelPath string `json:"model_path"` // 模型文件路径
 	Config    struct {
-		NPrompt     int    `json:"n_prompt"`      // 提示token数量
-		NGen        int    `json:"n_gen"`         // 生成token数量
-		NDepth      int    `json:"n_depth"`       // 深度
-		BatchSize   int    `json:"batch_size"`    // 批处理大小
-		UBatchSize  int    `json:"ubatch_size"`   // 微批处理大小
-		CacheTypeK  string `json:"cache_type_k"`  // K缓存类型
-		CacheTypeV  string `json:"cache_type_v"`  // V缓存类型
-		Threads     int    `json:"threads"`       // 线程数
-		CPUMask     string `json:"cpu_mask"`      // CPU掩码
-		CPUStrict   int    `json:"cpu_strict"`    // CPU严格模式
-		Poll        int    `json:"poll"`          // 轮询间隔
+		// 基本参数
+		NPrompt    int    `json:"n_prompt"`    // 提示token数量
+		NGen       int    `json:"n_gen"`       // 生成token数量
+		PG         string `json:"pg"`          // 提示/生成比例 (格式: "pp,tg")
+		NDepth     int    `json:"n_depth"`     // 深度
+		BatchSize  int    `json:"batch_size"`  // 批处理大小
+		UBatchSize int    `json:"ubatch_size"` // 微批处理大小
+
+		// 缓存配置
+		CacheTypeK string `json:"cache_type_k"` // K缓存类型
+		CacheTypeV string `json:"cache_type_v"` // V缓存类型
+
+		// CPU相关配置
+		Threads   int    `json:"threads"`    // 线程数
+		CPUMask   string `json:"cpu_mask"`   // CPU掩码 (格式: "hex,hex")
+		CPUStrict int    `json:"cpu_strict"` // CPU严格模式 (0|1)
+		Poll      int    `json:"poll"`       // 轮询间隔 (0...100)
+
+		// GPU相关配置
 		NGPULayers  int    `json:"n_gpu_layers"`  // GPU层数
-		SplitMode   string `json:"split_mode"`    // 分割模式
+		SplitMode   string `json:"split_mode"`    // 分割模式 (none|layer|row)
 		MainGPU     int    `json:"main_gpu"`      // 主GPU
-		NoKVOffload int    `json:"no_kv_offload"` // 禁用KV卸载
-		FlashAttn   int    `json:"flash_attn"`    // 闪现注意力
-		Mmap        int    `json:"mmap"`          // 内存映射
-		Numa        string `json:"numa"`          // NUMA策略
-		Embeddings  int    `json:"embeddings"`    // 嵌入模式
-		TensorSplit string `json:"tensor_split"`  // 张量分割
-		Repetitions int    `json:"repetitions"`   // 重复次数
-		Priority    int    `json:"priority"`      // 优先级
-		Delay       int    `json:"delay"`         // 延迟（秒）
-		Output      string `json:"output"`        // 输出格式
-		OutputErr   string `json:"output_err"`    // 错误输出格式
-		Verbose     int    `json:"verbose"`       // 详细模式
-		Progress    int    `json:"progress"`      // 显示进度
+		NoKVOffload int    `json:"no_kv_offload"` // 禁用KV卸载 (0|1)
+		FlashAttn   int    `json:"flash_attn"`    // 启用Flash Attention (0|1)
+
+		// 内存管理
+		Mmap int    `json:"mmap"` // 内存映射 (0|1)
+		Numa string `json:"numa"` // NUMA策略 (distribute|isolate|numactl)
+
+		// 其他功能
+		Embeddings      int    `json:"embeddings"`       // 嵌入模式 (0|1)
+		TensorSplit     string `json:"tensor_split"`     // 张量分割 (格式: "ts0/ts1/..")
+		OverrideTensors string `json:"override_tensors"` // 覆盖张量 (格式: "<tensor name pattern>=<buffer type>;...")
+
+		// 测试控制
+		Repetitions int `json:"repetitions"` // 重复次数
+		Priority    int `json:"priority"`    // 进程优先级 (0|1|2|3)
+		Delay       int `json:"delay"`       // 延迟（秒）
+
+		// 输出控制
+		Output    string `json:"output"`     // 输出格式 (csv|json|jsonl|md|sql)
+		OutputErr string `json:"output_err"` // 错误输出格式 (csv|json|jsonl|md|sql)
+		Verbose   int    `json:"verbose"`    // 详细模式 (0|1)
+		Progress  int    `json:"progress"`   // 显示进度 (0|1)
 	} `json:"config"`
 }
 
