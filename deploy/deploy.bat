@@ -68,6 +68,101 @@ if not "%ERRORLEVEL%"=="0" (
     echo "警告：关闭系统休眠失败，但不会中断安装"
 )
 
+:: 设置高性能电源计划
+echo "正在设置高性能电源计划..."
+powercfg -setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c
+if not "%ERRORLEVEL%"=="0" (
+    echo "警告：设置高性能电源计划失败，尝试创建新的高性能计划..."
+    powercfg -duplicatescheme 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c
+)
+
+:: 禁用显示器自动关闭和屏幕保护
+echo "正在禁用显示器自动关闭..."
+powercfg -change -monitor-timeout-ac 0
+powercfg -change -monitor-timeout-dc 0
+reg add "HKCU\Control Panel\Desktop" /v ScreenSaveActive /t REG_SZ /d "0" /f
+if not "%ERRORLEVEL%"=="0" (
+    echo "警告：禁用屏幕保护失败，但不会中断安装"
+)
+
+:: 禁用系统待机
+echo "正在禁用系统待机..."
+powercfg -change -standby-timeout-ac 0
+powercfg -change -standby-timeout-dc 0
+
+:: 配置系统崩溃自动重启
+echo "正在配置系统崩溃自动重启..."
+reg add "HKLM\SYSTEM\CurrentControlSet\Control\CrashControl" /v AutoReboot /t REG_DWORD /d 1 /f
+if not "%ERRORLEVEL%"=="0" (
+    echo "警告：配置系统崩溃自动重启失败，但不会中断安装"
+)
+
+:: 禁用错误报告
+echo "正在禁用错误报告..."
+reg add "HKLM\SOFTWARE\Microsoft\Windows\Windows Error Reporting" /v Disabled /t REG_DWORD /d 1 /f
+if not "%ERRORLEVEL%"=="0" (
+    echo "警告：禁用错误报告失败，但不会中断安装"
+)
+
+:: 创建磁盘清理脚本和计划任务
+echo "正在创建磁盘清理脚本..."
+if not exist "C:\ProgramData\ServerMaintenance" (
+    mkdir "C:\ProgramData\ServerMaintenance"
+    if not "%ERRORLEVEL%"=="0" (
+        echo "警告：创建服务器维护目录失败，但不会中断安装"
+        goto :skip_disk_cleanup
+    )
+)
+
+echo @echo off> "C:\ProgramData\ServerMaintenance\DiskCleanup.bat"
+echo cleanmgr /sagerun:1 >> "C:\ProgramData\ServerMaintenance\DiskCleanup.bat"
+
+:: 设置磁盘清理选项
+echo "正在设置磁盘清理选项..."
+reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VolumeCaches\Temporary Files" /v StateFlags0001 /t REG_DWORD /d 2 /f
+reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VolumeCaches\Recycle Bin" /v StateFlags0001 /t REG_DWORD /d 2 /f
+reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VolumeCaches\Downloaded Program Files" /v StateFlags0001 /t REG_DWORD /d 2 /f
+
+:: 创建磁盘清理计划任务
+echo "正在创建磁盘清理计划任务..."
+schtasks /create /tn "DiskCleanup" /tr "C:\ProgramData\ServerMaintenance\DiskCleanup.bat" /sc WEEKLY /d SUN /st 02:00 /ru "SYSTEM" /f
+if not "%ERRORLEVEL%"=="0" (
+    echo "警告：创建磁盘清理计划任务失败，但不会中断安装"
+)
+
+:skip_disk_cleanup
+
+:: 配置系统日志清理
+echo "正在配置系统日志清理..."
+wevtutil sl Application /ms:20971520 /rt:false
+wevtutil sl System /ms:20971520 /rt:false
+wevtutil sl Security /ms:20971520 /rt:false
+
+:: 启用远程桌面
+echo "正在启用远程桌面..."
+reg add "HKLM\SYSTEM\CurrentControlSet\Control\Terminal Server" /v fDenyTSConnections /t REG_DWORD /d 0 /f
+if not "%ERRORLEVEL%"=="0" (
+    echo "警告：启用远程桌面失败，但不会中断安装"
+)
+
+:: 配置防火墙允许远程桌面
+netsh advfirewall firewall set rule group="远程桌面" new enable=yes
+if not "%ERRORLEVEL%"=="0" (
+    echo "警告：配置防火墙规则失败，但不会中断安装"
+)
+
+:: 优化网络设置
+echo "正在优化网络设置..."
+netsh int tcp set global autotuninglevel=normal
+netsh int tcp set global congestionprovider=ctcp
+
+:: 禁用不必要的服务
+echo "正在禁用不必要的服务..."
+sc config "DiagTrack" start= disabled
+sc config "dmwappushservice" start= disabled
+sc config "WSearch" start= disabled
+sc config "wuauserv" start= disabled
+
 :: 配置Windows更新延期计划任务
 echo "正在配置Windows更新延期计划任务..."
 
