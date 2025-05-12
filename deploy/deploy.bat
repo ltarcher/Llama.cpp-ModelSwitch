@@ -61,6 +61,96 @@ if not "%ERRORLEVEL%"=="0" (
     echo "警告：配置热点自动启动失败，但不会中断安装"
 )
 
+:: 配置Windows更新延期计划任务
+echo "正在配置Windows更新延期计划任务..."
+
+:: 创建脚本目录
+echo "创建脚本目录..."
+if not exist "C:\ProgramData\WindowsUpdateDelay" (
+    mkdir "C:\ProgramData\WindowsUpdateDelay"
+    if not "%ERRORLEVEL%"=="0" (
+        echo "警告：创建脚本目录失败，但不会中断安装"
+        goto :skip_update_delay
+    )
+)
+
+:: 创建PowerShell脚本
+echo "创建Windows更新延期脚本..."
+echo # DelayWindowsUpdate.ps1> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo # 脚本功能：将所有Windows更新推迟30天>> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo # 创建日期：%date%>> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo.>> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo # 设置日志文件路径>> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo $logFile = "$env:ProgramData\WindowsUpdateDelay\delay_update_log.txt">> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo.>> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo # 确保日志目录存在>> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo if (-not (Test-Path "$env:ProgramData\WindowsUpdateDelay")) {>> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo     New-Item -Path "$env:ProgramData\WindowsUpdateDelay" -ItemType Directory -Force ^| Out-Null>> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo }>> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo.>> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo # 记录日志函数>> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo function Write-Log {>> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo     param (>> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo         [string]$Message>> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo     )>> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo     >> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss">> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo     "$timestamp - $Message" ^| Out-File -FilePath $logFile -Append>> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo     Write-Host $Message>> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo }>> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo.>> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo # 记录脚本开始执行>> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo Write-Log "开始执行Windows更新延期脚本">> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo.>> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo try {>> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo     # 设置质量更新延期天数（安全更新等）>> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo     Write-Log "设置质量更新延期30天">> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo     Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings" -Name "DeferQualityUpdatesPeriodInDays" -Value 30 -Type DWord -Force>> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo     >> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo     # 设置功能更新延期天数（Windows版本更新）>> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo     Write-Log "设置功能更新延期30天">> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo     Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings" -Name "DeferFeatureUpdatesPeriodInDays" -Value 30 -Type DWord -Force>> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo     >> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo     # 暂停更新>> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo     Write-Log "暂停Windows更新30天">> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo     $pauseDate = (Get-Date).AddDays(30).ToString("yyyy-MM-dd")>> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo     Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings" -Name "PauseUpdatesExpiryTime" -Value $pauseDate -Type String -Force>> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo     >> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo     # 禁用自动更新>> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo     Write-Log "禁用自动更新">> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo     if (-not (Test-Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU")) {>> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo         New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Force ^| Out-Null>> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo     }>> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo     Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "NoAutoUpdate" -Value 1 -Type DWord -Force>> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo     >> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo     Write-Log "Windows更新已成功延期30天">> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo     exit 0>> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo }>> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo catch {>> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo     Write-Log "错误：延期Windows更新失败 - $_">> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo     exit 1>> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+echo }>> "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+
+:: 创建计划任务
+echo "创建Windows更新延期计划任务..."
+schtasks /create /tn "DelayWindowsUpdate" /tr "powershell.exe -ExecutionPolicy Bypass -File C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1" /sc WEEKLY /mo 2 /d MON /st 03:00 /ru "SYSTEM" /rl HIGHEST /f
+if not "%ERRORLEVEL%"=="0" (
+    echo "警告：创建Windows更新延期计划任务失败，但不会中断安装"
+) else (
+    echo "Windows更新延期计划任务创建成功"
+)
+
+:: 立即执行一次脚本
+echo "立即执行Windows更新延期..."
+powershell.exe -ExecutionPolicy Bypass -File "C:\ProgramData\WindowsUpdateDelay\DelayWindowsUpdate.ps1"
+if not "%ERRORLEVEL%"=="0" (
+    echo "警告：Windows更新延期执行失败，但不会中断安装"
+) else (
+    echo "Windows更新已成功延期30天"
+)
+
+:skip_update_delay
+
 :: 安装软件
 echo "正在检查安装文件..."
 if not exist ".\tools\OllamaSetup.exe" (
