@@ -61,6 +61,13 @@ if not "%ERRORLEVEL%"=="0" (
     echo "警告：配置热点自动启动失败，但不会中断安装"
 )
 
+:: 关闭系统休眠
+echo "正在关闭系统休眠..."
+powercfg -h off
+if not "%ERRORLEVEL%"=="0" (
+    echo "警告：关闭系统休眠失败，但不会中断安装"
+)
+
 :: 配置Windows更新延期计划任务
 echo "正在配置Windows更新延期计划任务..."
 
