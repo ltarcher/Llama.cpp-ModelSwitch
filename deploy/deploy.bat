@@ -54,95 +54,11 @@ if not "%ERRORLEVEL%"=="0" (
     goto :ERROR
 )
 
-:: 创建热点管理脚本目录
-echo "正在创建热点管理脚本..."
-mkdir "C:\ProgramData\HotspotManager" 2>nul
-
-:: 创建热点初始化脚本
-echo "正在创建热点初始化脚本..."
-(
-echo # 检查是否以管理员权限运行
-echo if (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent^(^)).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator^)^) {
-echo     Write-Warning "请以管理员权限运行此脚本"
-echo     exit
-echo }
-echo.
-echo # 初始化移动热点设置（仅首次执行）
-echo $ssid = "Qingling"
-echo $password = "Qingling@123"
-echo.
-echo # 使用Windows 11的设置API配置移动热点
-echo try {
-echo     # 加载必要的类型
-echo     Add-Type -AssemblyName System.Runtime.WindowsRuntime
-echo     $asTaskGeneric = ([System.WindowsRuntimeSystemExtensions].GetMethods() ^| Where-Object { $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation``1' }^)[0]
-echo.    
-echo     # 访问Windows.NetworkOperators命名空间
-echo     [Windows.Networking.NetworkOperators.NetworkOperatorTetheringManager, Windows.Networking.NetworkOperators, ContentType = WindowsRuntime] ^| Out-Null
-echo.    
-echo     # 配置热点
-echo     $tetheringManager = [Windows.Networking.NetworkOperators.NetworkOperatorTetheringManager]::CreateFromConnectionProfile([Windows.Networking.Connectivity.NetworkInformation]::GetInternetConnectionProfile(^)^)
-echo.    
-echo     # 设置热点配置
-echo     $configuration = $tetheringManager.GetCurrentAccessPointConfiguration(^)
-echo     $configuration.Ssid = $ssid
-echo     $configuration.Passphrase = $password
-echo.    
-echo     # 应用配置
-echo     $asyncOperation = $tetheringManager.ConfigureAccessPointAsync($configuration^)
-echo     $asTask = $asTaskGeneric.MakeGenericMethod([Windows.Networking.NetworkOperators.NetworkOperatorTetheringOperationResult]^)
-echo     $task = $asTask.Invoke($null, @($asyncOperation^)^)
-echo     $task.Wait(-1^) ^| Out-Null
-echo.    
-echo     Write-Host "移动热点初始化成功，SSID: $ssid"
-echo } catch {
-echo     Write-Error "移动热点初始化失败: $_"
-echo }
-) > "C:\ProgramData\HotspotManager\InitializeHotspot.ps1"
-
-:: 创建热点启动脚本
-echo "正在创建热点启动脚本..."
-(
-echo # 检查是否以管理员权限运行
-echo if (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent^(^)).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator^)^) {
-echo     # 尝试以管理员权限重新启动
-echo     Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File ``"$PSCommandPath``"" -Verb RunAs
-echo     exit
-echo }
-echo.
-echo # 启动移动热点（不修改配置）
-echo try {
-echo     # 加载必要的类型
-echo     Add-Type -AssemblyName System.Runtime.WindowsRuntime
-echo     $asTaskGeneric = ([System.WindowsRuntimeSystemExtensions].GetMethods() ^| Where-Object { $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation``1' }^)[0]
-echo.    
-echo     # 访问Windows.NetworkOperators命名空间
-echo     [Windows.Networking.NetworkOperators.NetworkOperatorTetheringManager, Windows.Networking.NetworkOperators, ContentType = WindowsRuntime] ^| Out-Null
-echo.    
-echo     # 获取热点管理器
-echo     $tetheringManager = [Windows.Networking.NetworkOperators.NetworkOperatorTetheringManager]::CreateFromConnectionProfile([Windows.Networking.Connectivity.NetworkInformation]::GetInternetConnectionProfile(^)^)
-echo.    
-echo     # 启动热点
-echo     $asyncOperation = $tetheringManager.StartTetheringAsync(^)
-echo     $asTask = $asTaskGeneric.MakeGenericMethod([Windows.Networking.NetworkOperators.NetworkOperatorTetheringOperationResult]^)
-echo     $task = $asTask.Invoke($null, @($asyncOperation^)^)
-echo     $task.Wait(-1^) ^| Out-Null
-echo.    
-echo     Write-Host "移动热点已启动"
-echo } catch {
-echo     Write-Error "移动热点启动失败: $_"
-echo }
-) > "C:\ProgramData\HotspotManager\StartHotspot.ps1"
-
-:: 首次执行热点初始化
-echo "正在初始化热点配置..."
-powershell -ExecutionPolicy Bypass -File "C:\ProgramData\HotspotManager\InitializeHotspot.ps1"
-
-:: 配置热点自动启动
-echo "正在配置热点自动启动..."
-reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v HotSpot /t REG_SZ /d "powershell -WindowStyle Hidden -ExecutionPolicy Bypass -File \"C:\ProgramData\HotspotManager\StartHotspot.ps1\"" /f
+:: 配置热点计划任务自动启动
+echo "正在配置热点计划任务自动启动..."
+schtasks /create /tn "启动移动热点" /tr "powershell -WindowStyle Hidden -ExecutionPolicy Bypass -File \"%~dp0tools\hotspot.ps1\" 1" /sc onlogon /ru SYSTEM /rl HIGHEST /f
 if not "%ERRORLEVEL%"=="0" (
-    echo "警告：配置热点自动启动失败，但不会中断安装"
+    echo "警告：配置热点计划任务失败，但不会中断安装"
 )
 
 :: 关闭系统休眠
