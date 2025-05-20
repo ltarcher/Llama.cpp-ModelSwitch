@@ -56,7 +56,7 @@ if not "%ERRORLEVEL%"=="0" (
 
 :: 配置热点计划任务自动启动
 echo "正在配置热点计划任务自动启动..."
-schtasks /create /tn "启动移动热点" /tr "powershell -WindowStyle Hidden -ExecutionPolicy Bypass -File \"%~dp0tools\hotspot.ps1\" 1" /sc onlogon /ru SYSTEM /rl HIGHEST /f
+schtasks /create /tn "启动移动热点" /tr "powershell -WindowStyle Hidden -ExecutionPolicy Bypass -File \"%~dp0tools\hotspot.ps1\" 1" /sc onlogon /ru admin /rl HIGHEST /f
 if not "%ERRORLEVEL%"=="0" (
     echo "警告：配置热点计划任务失败，但不会中断安装"
 )
@@ -283,11 +283,11 @@ if not "%ERRORLEVEL%"=="0" (
     echo "警告：设置环境变量失败，但不会中断安装"
 )
 
-:: 配置ollama开机自启动
-echo "正在配置ollama开机自启动..."
-reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v Ollama /t REG_SZ /d "C:\ollama\ollama.exe serve" /f
+:: 配置ollama计划任务启动
+echo "正在配置ollama计划任务启动..."
+schtasks /create /tn "启动Ollama" /tr "\"C:\ollama\ollama.exe\" serve" /sc onlogon /ru admin /rl HIGHEST /f
 if not "%ERRORLEVEL%"=="0" (
-    echo "警告：配置ollama开机自启动失败，但不会中断安装"
+    echo "警告：配置ollama计划任务失败，但不会中断安装"
 )
 
 :: 检查Docker Desktop是否已安装
@@ -306,11 +306,11 @@ if exist "C:\Program Files\Docker Desktop\Docker Desktop.exe" (
     net localgroup docker-users admin /add
 )
 
-:: 配置Docker Desktop开机自启动
-echo "正在配置Docker Desktop开机自启动..."
-reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v DockerDesktop /t REG_SZ /d "\"C:\Program Files\Docker Desktop\Docker Desktop.exe\"" /f
+:: 配置Docker Desktop计划任务启动
+echo "正在配置Docker Desktop计划任务启动..."
+schtasks /create /tn "启动Docker Desktop" /tr "\"C:\Program Files\Docker Desktop\Docker Desktop.exe\"" /sc onlogon /ru admin /rl HIGHEST /f
 if not "%ERRORLEVEL%"=="0" (
-    echo "警告：配置Docker Desktop开机自启动失败，但不会中断安装"
+    echo "警告：配置Docker Desktop计划任务失败，但不会中断安装"
 )
 
 :: 创建Qingling用户账号
