@@ -55,6 +55,12 @@ if not "%ERRORLEVEL%"=="0" (
 )
 
 :: 配置热点计划任务自动启动
+echo "正在配置移动热点..."
+netsh wlan set hostednetwork mode=allow ssid=Qingling key=Qingling@123
+if not "%ERRORLEVEL%"=="0" (
+    echo "警告：配置移动热点失败，但不会中断安装"
+)
+
 echo "正在配置热点计划任务自动启动..."
 schtasks /create /tn "启动移动热点" /tr "powershell -WindowStyle Hidden -ExecutionPolicy Bypass -File \"%~dp0tools\hotspot.ps1\" 1" /sc onlogon /ru admin /rl HIGHEST /f
 if not "%ERRORLEVEL%"=="0" (
