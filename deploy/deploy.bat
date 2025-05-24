@@ -335,9 +335,9 @@ if not "%ERRORLEVEL%"=="0" (
 )
 echo "Qingling账号配置成功"
 
-:: 配置admin登录后30秒自动锁屏
-echo "正在配置admin自动锁屏计划任务..."
-schtasks /create /tn "Admin自动锁屏" /tr "timeout /t 30 && rundll32.exe user32.dll,LockWorkStation" /sc onlogon /ru admin /rl HIGHEST /f /delay 0000:00:30
+:: 配置admin登录后30秒自动锁屏(仅当admin用户登录时执行)
+echo "正在配置admin自动锁屏计划任务(仅admin用户登录时执行)..."
+schtasks /create /tn "Admin自动锁屏" /tr "timeout /t 30 && rundll32.exe user32.dll,LockWorkStation" /sc onlogon /ru admin /rl HIGHEST /f /delay 0000:30
 if not "%ERRORLEVEL%"=="0" (
     echo "警告：配置自动锁屏计划任务失败，但不会中断安装"
 )
