@@ -43,7 +43,7 @@ if not "%ERRORLEVEL%"=="0" (
     echo "错误：设置默认用户名失败"
     goto :ERROR
 )
-reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" /v DefaultPassword /t REG_SZ /d Admin@123 /f
+reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" /v DefaultPassword /t REG_SZ /d Qinglong!@3. /f
 if not "%ERRORLEVEL%"=="0" (
     echo "错误：设置默认密码失败"
     goto :ERROR
