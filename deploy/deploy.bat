@@ -169,6 +169,11 @@ sc config "dmwappushservice" start= disabled
 sc config "WSearch" start= disabled
 sc config "wuauserv" start= disabled
 
+echo 正在禁用 Windows 自动更新...
+
+:: 修改注册表以禁用自动更新
+reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" /v "AUOptions" /t REG_DWORD /d 5 /f
+
 :: 配置Windows更新延期计划任务
 echo "正在配置Windows更新延期计划任务..."
 
